@@ -76,7 +76,7 @@ func (this *CRDTDagNode) CreateNodeFromFile(file string, p *Payload.Payload) {
 	}
 	err = json.Unmarshal(data, this)
 	if err != nil {
-		panic(fmt.Errorf("CRDTDagNode - UnmmarshalDidn't work %s\nError: %s", data, err))
+		panic(fmt.Errorf("CRDTDagNode - UnmmarshalDidn't work, FileName: %s\nError: %s", file, err))
 	}
 	// this.Event = p
 	// s := string(data)

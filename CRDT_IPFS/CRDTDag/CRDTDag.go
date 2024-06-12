@@ -21,7 +21,7 @@ import (
 	IpfsLink "IPFS_CRDT/ipfsLink"
 
 	"github.com/ipfs/go-cid"
-	files "github.com/ipfs/go-ipfs-files"
+	Files "github.com/ipfs/go-libipfs/files"
 	"github.com/ipfs/interface-go-ipfs-core/path"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 
@@ -185,18 +185,18 @@ func (self CRDTManager) EncodeCid(s path.Resolved) EncodedStr {
 }
 func (self *CRDTManager) GetNodeFromEncodedCid(stringIn []EncodedStr) ([]string, error) {
 	ti := time.Now()
-	CidsBytes := make([][]byte, len(stringIn))
+	Cids := make([]cid.Cid, len(stringIn))
 
 	for index, s := range stringIn {
 		cid := cid.Cid{}
 		err := json.Unmarshal(s.Str, &cid)
 		if err != nil {
-			panic(fmt.Errorf("Couldn't unMarshall the path, byte :%s \nerror : %s", s.Str, err))
+			panic(fmt.Errorf("couldn't unmarshall the path, byte :%s \nerror : %s", s.Str, err))
 		}
-		CidsBytes[index] = cid.Bytes()
+		Cids[index] = cid
 	}
 
-	fils, err := IPFSLink.GetIPFS(self.Sys, CidsBytes)
+	fils, err := IPFSLink.GetIPFS(self.Sys, Cids)
 	if err != nil {
 		panic(fmt.Errorf("issue retrieving the IPFS Node :%s", err))
 	}
@@ -205,29 +205,33 @@ func (self *CRDTManager) GetNodeFromEncodedCid(stringIn []EncodedStr) ([]string,
 	if len(fils) > 0 {
 		timeDownload = int(time.Since(ti).Nanoseconds()) / len(fils)
 	}
-	for index, fil := range fils {
+	for _, fil := range fils {
 		ti := time.Now()
-		if err != nil {
-			panic(fmt.Errorf("could not retrieve the node %s , error :%s", stringIn[index].Str, err))
-		}
 		fstr := self.nextFileName2()
-		err = os.Remove(fstr) // In cas the file where already existing ( which should never be the case)
-		// if errors.Is(err, os.ErrNotExist) {
-		// 	continue
-		// }
+		_ = os.Remove(fstr) // In cas the file where already existing ( which should never be the case)
 
 		filees_ret = append(filees_ret, fstr)
 
-		// Wrtie the Datadownloaded directly from IFPS
-		files.WriteTo(fil, fstr)
+		// THIS IS THE BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!!
+		// THIS IS THE BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!!
+		// THIS IS THE BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!!
+		// THIS IS THE BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!!
+		// THIS IS THE BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!!
+		// THIS IS THE BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!!
+		// THIS IS THE BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!!
+		// THIS IS THE BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!!
+		Files.WriteTo(fil, fstr) // TADAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!!
+		// THIS IS THE BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!! (botleneck for mispelling)25
+		// THIS IS THE BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!!
+		// THIS IS THE BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!!
+		// THIS IS THE BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!!
+		// THIS IS THE BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!!
+		// THIS IS THE BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!!
+		// THIS IS THE BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!!
+		// THIS IS THE BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!!  THIS IS THE BOTTLENECK DIscuss about it !!!!!
 
-		err = fil.Close()
-		if err != nil {
-			panic(fmt.Errorf("MERGE : Couldn't Close the file\n Error %s", err))
-		}
-
-		// If data has been encoded, We decode it here : \/
 		time_Retrieve := timeDownload + int(time.Since(ti).Nanoseconds())
+		// If data has been encoded, We decode it here : \/
 		ti = time.Now()
 		if self.Key != "" {
 			dataEncoded, err := os.ReadFile(fstr)
@@ -476,41 +480,6 @@ func (self *CRDTManager) UpdateRootNodeFolder() {
 	self.returnSema()
 }
 
-// func sendRootNodes(ps *pubsub.PubSub, topic *pubsub.Topic, RootNodeFolder string) {
-// 	files, err := ioutil.ReadDir(RootNodeFolder)
-// 	if err != nil {
-// 		panic(fmt.Errorf("sendRootNodes - Checkupdate could not open folder\nerror: %s", err))
-// 	}
-
-// 	for _, file := range files {
-
-// 		fil, err := os.OpenFile(RootNodeFolder+"/remote/"+file.Name(), os.O_RDONLY, os.ModeAppend)
-// 		if err != nil {
-// 			"golang.org/x/sync/semaphore"
-// 			panic(fmt.Errorf("error in sendRootNodes, Could not open the sub file\nError: %s", err))
-// 		}
-// 		stat, err := fil.Stat()
-// 		if err != nil {
-// 			panic(fmt.Errorf("error in sendRootNodes, Could not get stat the sub file\nError: %s", err))
-// 		}
-// 		bytesread := make([]byte, stat.Size())
-// 		_, err = fil.Read(bytesread)
-// 		if err != nil {
-// 			panic(fmt.Errorf("error in sendRootNodes, Could not read the sub file\nError: %s", err))
-// 		}
-// 		err = fil.Close()
-// 		if err != nil {
-// 			panic(fmt.Errorf("error in sendRootNodes, Could not close the sub file\nError: %s", err))
-// 		}
-// 		err = os.Remove(RootNodeFolder + file.Name())
-// 		if err != nil {
-// 			panic(fmt.Errorf("error in sendRootNodes, Could not remove the sub file\nError: %s", err))
-// 		}
-// 		ps.Publish(topic.String(), bytesread)
-// 	}
-// 	ps.Publish(topic.String(), []byte("EOF"))
-// }
-
 func (self *CRDTManager) AddRoot_node(nodeId EncodedStr, node *CRDTDagNodeInterface) {
 	self.getSema()
 	self.Root_nodes = append(self.Root_nodes, nodeId)
@@ -551,7 +520,6 @@ func (self *CRDTManager) AddNode(node EncodedStr, d *CRDTDagNodeInterface) {
 	self.AddRoot_node(node, d)
 }
 
-// // TODO Check this !!!
 func (self *CRDTManager) RemoteAddNodeSuper(cID EncodedStr, newnode *CRDTDagNodeInterface) {
 
 	toDl := make([]EncodedStr, 0)
@@ -705,11 +673,27 @@ func CheckForRemoteUpdates(self *CRDTDag, sub *pubsub.Subscription, c context.Co
 				if _, err := os.Stat(fileName); !errors.Is(err, os.ErrNotExist) {
 					os.Remove(fileName)
 				}
+				// Write the received CID in a file
 				fil, err := os.OpenFile(fileName, os.O_CREATE|os.O_WRONLY, 0755)
 				if err != nil {
 					panic(fmt.Errorf("error in checkForRemoteUpdate, Could not open the sub file\nError: %s", err))
 				}
 				_, err = fil.Write(msg.GetData())
+				if err != nil {
+					panic(fmt.Errorf("error in checkForRemoteUpdate, Could not write the sub file\nError: %s", err))
+				}
+				err = fil.Close()
+				if err != nil {
+					panic(fmt.Errorf("error in checkForRemoteUpdate, Could not close the sub file\nError: %s", err))
+				}
+
+				// Then mark arrival time To compute pubsub time
+				fil, err = os.OpenFile(fileName+".ArrivalTime", os.O_CREATE|os.O_WRONLY, 0755)
+				if err != nil {
+					panic(fmt.Errorf("error in checkForRemoteUpdate, Could not open the sub file\nError: %s", err))
+				}
+				t_arrival := time.Now().UnixNano()
+				_, err = fil.WriteString(fmt.Sprintf("%d", t_arrival))
 				if err != nil {
 					panic(fmt.Errorf("error in checkForRemoteUpdate, Could not write the sub file\nError: %s", err))
 				}

@@ -11,8 +11,8 @@ import (
 	"strconv"
 
 	"github.com/ipfs/go-cid"
+	Files "github.com/ipfs/go-libipfs/files"
 
-	FI "github.com/ipfs/go-ipfs-files"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 )
 
@@ -192,12 +192,13 @@ func (self *StrSet) CheckUpdate() []string {
 				}
 				received = append(received, ccid.String())
 
-				newFiles, err := IpfsLink.GetIPFS(self.sys, append(make([][]byte, 0), ccid.Bytes()))
+				newFiles, err := IpfsLink.GetIPFS(self.sys, append(make([]cid.Cid, 0), ccid))
 				if err != nil {
 					panic(fmt.Errorf("issue retrieving the IPFS Node :%s", err))
 				}
 				newNodeFile := self.NextFileName()
-				FI.WriteTo(newFiles[0], newNodeFile)
+				Files.WriteTo(newFiles[0], newNodeFile)
+				// os.WriteFile(newNodeFile, newFiles[0].Node.RawData(), 0644)
 
 				fileNotFinished := true
 				for fileNotFinished {

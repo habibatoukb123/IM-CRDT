@@ -2,6 +2,9 @@ NumberNodes=$1
 NumberUpdates=$2
 nbpeersUpdating=$3
 file_NODES=$4
+waitTime=$5
+SyncTime=$6
+
 
 echo "start Kadeploy "$(date +"%T")
 kadeploy3 -a CRDT_IPFS.yaml > kadeploy.log ;
@@ -11,37 +14,40 @@ echo "NumberNodes : $NumberNodes"
 cat "$file_NODES" | cut -d'.' -f1 | tail -n "$(( $NumberNodes - 1 ))" > other
 head -n 1 "$file_NODES"| cut -d'.' -f1 > bootstrap
 
-./Run_CI.sh go_trans.tar.gz $NumberNodes $NumberUpdates $nbpeersUpdating $file_NODES
-echo "waiting Five minute so everybody is connected"
-sleep 300s
-if [ $NumberUpdates -le 10 ]
-then
-echo "letting the algorithm run for 70s"
-sleep $(($numberUpdates + 100))s
-fi
-if [ $NumberUpdates -eq 100 ]
-then
-echo "letting the algorithm run for 220s"
-sleep $(($numberUpdates  + 120))s
-fi
-if [ $NumberUpdates -eq 1000 ]
-then
-echo "letting the algorithm run for 1200s"
+SLAVES=$(cat other)
+MASTER=$(cat bootstrap)
+
+./CompileNodes.sh go_trans.tar.gz
+./Run_CI.sh $NumberNodes $NumberUpdates $nbpeersUpdating $file_NODES $waitTime $SyncTime
+
+echo "Every peers has been started, starting iftop"
+
+sleeptime=$(( $NumberUpdates*$SyncTime ))
+margintime=$(( 200 ))
+
+for SLAVE in $SLAVES
+do
+    ssh root@$SLAVE "sh -c 'iftop -t -s $(($sleeptime + $margintime / 2 ))  > ${SLAVE}.netlog'" 2>&1 > /dev/null &
+    ssh root@$SLAVE "sh -c 'dstat -tcnmdsp 3 > ${SLAVE}.dstat'" 2>&1 > /dev/null &
+done
+ssh root@$MASTER "sh -c 'iftop -t -s $(($sleeptime + $margintime / 2 ))  > ${MASTER}.netlog'" 2>&1 > /dev/null &
+ssh root@$MASTER "sh -c 'dstat -tcnmdp 3 > ${MASTER}.dstat'" 2>&1 > /dev/null &
+
+echo "waiting 60s so everybody is connected"
+
+
+stepsleeptime=$(( ($sleeptime + $margintime)/10 ))
+sleep 60s
+echo "sleepTime : $sleeptime = $NumberUpdates * $SyncTime"
+echo "letting the algorithm run for $(( $stepsleeptime * 10 ))"
+echo "i.e. sleeping 10 times this nb of seconds :  $(( $stepsleeptime ))"
 for percent in {1..100..10} 
 do
-echo $(( $percent ))"percent"
-sleep 120s
+    echo $(( $percent ))"percent"
+    sleep $(( $stepsleeptime ))s
 done
-fi
-if [ $NumberUpdates -eq 10000 ]
-then
-echo "letting the algorithm run for 10200s - "$(date +"%T")
-for percent in {1..100..10} 
-do
-echo $(( $percent ))"percent"
-sleep 1020s
-done
-fi
+#./test_file.sh
+
 ./retrieveInfo.sh $NumberNodes $NumberUpdates
 sleep 2s
 echo "DONE, now retrieve  data and mean!!!"

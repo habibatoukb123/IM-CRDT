@@ -4,3 +4,5 @@ scp run_multiple.sh $1:~/run_multiple.sh
 scp run_multipleBIS.sh $1:~/run_multipleBIS.sh
 scp analyseCSV.R $1:~/analyseCSV.R
 scp retrieveInfo.sh $1:~/retrieveInfo.sh
+scp CompileNodes.sh $1:~/CompileNodes.sh
+scp test_file.sh $1:~/test_file.sh

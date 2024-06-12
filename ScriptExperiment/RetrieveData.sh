@@ -15,3 +15,4 @@ for filename in $inputfolder/*.tar.gz; do
 done
 
 mv $inputfolder/*.netlog  $savingfolder
+mv $inputfolder/*.dstat  $savingfolder

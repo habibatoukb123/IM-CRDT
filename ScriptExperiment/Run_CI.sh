@@ -1,9 +1,11 @@
 #!/bin/bash
-code=$1
-numberPeers=$2
-numberUpdates=$3
-nbpeersUpdating=$4
-file_NODES=$5
+numberPeers=$1
+numberUpdates=$2
+nbpeersUpdating=$3
+file_NODES=$4
+waitTime=$5
+SyncTime=$6
+
 echo "/**"
 echo " * Beggining the CRDT IPFS setup"
 echo " */"
@@ -29,30 +31,18 @@ echo "MASTER"
 echo $MASTER
 echo "Building the  GO implementation"
 
-for SLAVE in $SLAVES
-do
-scp $code root@$SLAVE:~/$code &
-done
-scp $code root@$MASTER:~/$code
-sleep 60s
-for SLAVE in $SLAVES
-do
-ssh root@$SLAVE "sh -c 'tar -xvf go_trans.tar.gz > tar.log && cd CRDT_IPFS && /usr/local/go/bin/go mod tidy > build.log && /usr/local/go/bin/go build > build.log'" > /dev/null  2>&1 & 
-done
-ssh root@$MASTER "sh -c 'tar -xvf go_trans.tar.gz > tar.log && cd CRDT_IPFS && /usr/local/go/bin/go mod tidy > build.log && /usr/local/go/bin/go build > build.log'" > build.log 2>&1
-
-sleep 90s
-
 echo "running the bootstrap in ${MASTER} node1"
 ssh root@$MASTER "rm  CRDT_IPFS/ID"
 ssh root@$MASTER "mkdir  CRDT_IPFS/node1"
-ssh root@$MASTER "mkdir  CRDT_IPFS/node1/rootNode"
-ssh root@$MASTER "mkdir  CRDT_IPFS/node1/remote"
-ssh root@$MASTER "sh -c 'sysctl -w net.ipv6.conf.all.disable_ipv6=1 && sysctl -w net.ipv6.conf.default.disable_ipv6=1 '"
+#ssh root@$MASTER "sh -c 'sysctl -w net.ipv6.conf.all.disable_ipv6=1 && sysctl -w net.ipv6.conf.default.disable_ipv6=1 '"
 # ssh root@$MASTER "sh -c 'cd CRDT_IzPFS && ./IPFS_CRDT --encode sataislifesataisloveanditsfor32b --mode BootStrap --name node1 --updatesNB $numberUpdates --updating true  > /dev/null & '"  &
-ssh root@$MASTER "sh -c 'export LIBP2P_FORCE_PNET=1 && cd CRDT_IPFS && ./IPFS_CRDT  --mode BootStrap --name node1 --updatesNB $numberUpdates --updating true  > /dev/null & '"  &
 
-ssh root@$MASTER "sh -c 'iftop -t -s $(($numberUpdates + 300)) > $MASTER.netlog'" 2>&1 > /dev/null &
+
+#for test ./IPFS_CRDT --mode=BootStrap --name=node1 --updatesNB=300 --updating=true --WaitTime=30 --SyncTime=1
+#ssh root@$MASTER "sh -c 'export LIBP2P_FORCE_PNET=1 && cd CRDT_IPFS && ./IPFS_CRDT  --mode BootStrap --name node1 --updatesNB $numberUpdates --updating true  > /dev/null & '"  &
+ssh root@$MASTER "sh -c 'cd CRDT_IPFS && ./IPFS_CRDT --mode=BootStrap --name=node1 --updatesNB=$numberUpdates --updating=true --WaitTime=$waitTime --SyncTime=$SyncTime  > /dev/null & '"  &
+#ssh root@$MASTER "sh -c 'cd CRDT_IPFS && ./IPFS_CRDT --ParallelRetrieve=1  --mode=BootStrap --name=node1 --updatesNB=$numberUpdates --updating=true --WaitTime=$waitTime   --SyncTime=$SyncTime  > /dev/null & '"  &
+
 sleep 30s
 BOOTSTRAPIDS=$(ssh root@$MASTER "sh -c 'cat ./CRDT_IPFS/ID2'")
 BOOTSTRAPID=""
@@ -77,20 +67,20 @@ echo "x: "$x
 
 
 scp root@$MASTER:~/CRDT_IPFS/IDBootstrapIPFS IDBootstrapIPFS
+sleep 5s 
+
 for SLAVE in $SLAVES
 do
 scp IDBootstrapIPFS root@$SLAVE:~/CRDT_IPFS/IDBootstrapIPFS
 done
 
-sleep 5s
+sleep 10s
 
 for SLAVE in $SLAVES
 do
 
 ssh root@$SLAVE "rm -rf CRDT_IPFS/node1"
 ssh root@$SLAVE "mkdir  CRDT_IPFS/node1"
-ssh root@$SLAVE "mkdir  CRDT_IPFS/node1/rootNode"
-ssh root@$SLAVE "mkdir  CRDT_IPFS/node1/remote"
 
 
 echo $SLAVE
@@ -108,16 +98,16 @@ echo "updating"
 
 # ssh root@$SLAVE "sh -c 'cd CRDT_IPFS && ./IPFS_CRDT --encode sataislifesataisloveanditsfor32b --mode update --ni ${BOOTSTRAPID} --name node1 --updatesNB $numberUpdates --updating true  > /dev/null &'" &
 # 
-# ./IPFS_CRDT --mode update --ni /ip4/172.16.193.46/tcp/35481/p2p/12D3KooWND8fE83tssCvrheGtm7dhRA47DomsVauFXW2KdEGYpYH --name node1 --updatesNB 100 --IPFSBootstrap ~/CRDT_IPFS/IDBootstrapIPFS --updating true 
-ssh root@$SLAVE "sh -c 'export LIBP2P_FORCE_PNET=1 && cd CRDT_IPFS  && ./IPFS_CRDT --mode update --ni ${BOOTSTRAPID} --name node1 --updatesNB $numberUpdates  --IPFSBootstrap ~/CRDT_IPFS/IDBootstrapIPFS --updating true  > /dev/null &'" &
+# ./IPFS_CRDT --mode update --ni /ip4/172.16.193.5/udp/42911/quic-v1/webtransport/certhash/uEiBRLcQZ0wJ5qbdbXiOWnZ7e-NNCm6bAxHnQwIYspQrVag/certhash/uEiCtpQctH5sNZjsSLmU1u7_gE4DlYCJDf4dwccm01RhVsQ/p2p/12D3KooWC5y4WAcM2yxb1LtV2F3b253zEuqtuuV7tUUPnKi1dLyN --name node1 --updatesNB 100 --IPFSBootstrap ~/CRDT_IPFS/IDBootstrapIPFS --updating true 
+ssh root@$SLAVE "sh -c 'cd CRDT_IPFS  && ./IPFS_CRDT  --mode=update --ni=${BOOTSTRAPID} --name=node1 --updatesNB=$numberUpdates  --IPFSBootstrap=IDBootstrapIPFS --updating=true --WaitTime=$waitTime  --SyncTime=$SyncTime  > /dev/null &'" &
+#ssh root@$SLAVE "sh -c 'cd CRDT_IPFS  && ./IPFS_CRDT  --ParallelRetrieve=1 --mode=update --ni=${BOOTSTRAPID} --name=node1 --updatesNB=$numberUpdates  --IPFSBootstrap=IDBootstrapIPFS --updating=true --WaitTime=$waitTime  --SyncTime=$SyncTime  > /dev/null &'" &
 x=$(( $x - 1 ))
 else
 echo "NOT updating"
 # ssh root@$SLAVE "sh -c 'cd CRDT_IPFS && ./IPFS_CRDT --encode sataislifesataisloveanditsfor32b --mode update --ni ${BOOTSTRAPID} --name node1 --updatesNB $numberUpdates  > /dev/null &'" &
-ssh root@$SLAVE "sh -c 'cd CRDT_IPFS && ./IPFS_CRDT --mode update --ni ${BOOTSTRAPID} --name node1 --updatesNB $numberUpdates  --IPFSBootstrap ~/CRDT_IPFS/IDBootstrapIPFS  > /dev/null &'" &
+ssh root@$SLAVE "sh -c 'cd CRDT_IPFS && ./IPFS_CRDT --mode=update --ni=${BOOTSTRAPID} --name=node1 --updatesNB=$numberUpdates  --IPFSBootstrap=IDBootstrapIPFS --WaitTime=$waitTime  --SyncTime=$SyncTime  > /dev/null &'" &
+#ssh root@$SLAVE "sh -c 'cd CRDT_IPFS && ./IPFS_CRDT --ParallelRetrieve=1 --mode=update --ni=${BOOTSTRAPID} --name=node1 --updatesNB=$numberUpdates  --IPFSBootstrap=IDBootstrapIPFS --WaitTime=$waitTime  --SyncTime=$SyncTime  > /dev/null &'" &
 fi
-
-ssh root@$SLAVE "sh -c 'iftop -t -s $(($numberUpdates + 300))  > ${SLAVE}.netlog'" 2>&1 > /dev/null &
 
 #ssh root@$SLAVE "sh -c 'cd CRDT_IPFS && ./IPFS_CRDT --mode update --ni ${BOOTSTRAPID} --name node2 > out.log &'"&
 #ssh root@$SLAVE "sh -c 'cd CRDT_IPFS && ./IPFS_CRDT --mode update --ni ${BOOTSTRAPID} --name node3 > out.log &'"&
