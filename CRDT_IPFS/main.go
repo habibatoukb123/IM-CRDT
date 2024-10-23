@@ -70,15 +70,14 @@ func main() {
 	encode := flag.String("encode", "", "Data encription key")
 	bootstrapPeer := flag.String("ni", "", "Client bootstrap for pubsub")
 	ipfsbootstrap := flag.String("IPFSBootstrap", "", "IPFS bootstrap peer to have a private network")
-	swarmKey := flag.Bool("SwarmKey", false, "IPFS bootstrap peer to have a private network")
-	parralelRetrieve := flag.Bool("ParallelRetrieve", false, "If true, doesn't block algorithm while retrieving data")
+	swarmKey := flag.Bool("SwarmKey", true, "IPFS bootstrap peer to have a private network")
+	parralelRetrieve := flag.Bool("ParallelRetrieve", true, "If true, doesn't block algorithm while retrieving data")
 	waitTime := flag.Int("WaitTime", 30, "Number of awaiten micro seconds betweek each look-up, increase to retrieve more concurrently every updates")
 	syncTime := flag.Int("SyncTime", 5, "Number of awaiten seconds betweek each Send States (State-based), increase to Syncronyse sooner but this may stress the algorithm")
 
 	flag.Parse()
 
 	cfg := Config.IM_CRDTConfig{
-
 		PeerName:         *peerName,
 		Mode:             *mode,
 		UpdatesNB:        *updatesNB,
@@ -92,6 +91,7 @@ func main() {
 		Updating:         *updating,
 		WaitTime:         *waitTime,
 		SyncTime:         *syncTime,
+		TestMode:         false,
 	}
 	fmt.Fprintf(os.Stderr, "Updates Number : %d\n", cfg.UpdatesNB)
 	_ = measurement
@@ -118,12 +118,12 @@ func main() {
 		Config.ToFile(cfg, cfg.PeerName+"/time/config.cfg")
 
 		// Tests.Peer1Concu(cfg) // ------------- MANAGE CONCURENCY !!! Operation based representation of 2P-Set
-		// Tests.BootstrapDeltaBasedSetUp(cfg) // ------------- MANAGE CONCURENCY !!! CLSet
-
-		// Tests.Peer1IPFS(*peerName, *updatesNB, *ntpServ) // ------------- NO CONCURENCY, ONLY IPFS ALONE !!!
+		Tests.BootstrapDeltaBasedSetUp(cfg) // ------------- MANAGE CONCURENCY !!! Delta based CLSet
+		// Tests.BootstrapStateBasedSetUp(cfg) // ------------- State-based CLSet !!!
+		// Tests.Peer1IPFS(cfg) // ------------- NO CONCURENCY, ONLY IPFS ALONE !!!
 		// Tests.Peer1(*peerName, *updatesNB, *ntpServ) // ------------- NO CONCURENCY, CRDT + IPFS  !!!
 
-		Tests.LogootBootstrap_OpBased(cfg) // Logoot, manage Concurrency
+		// Tests.LogootBootstrap_OpBased(cfg) // Logoot, manage Concurrency
 	} else if *mode == "update" {
 
 		fmt.Println("bootstrap peer :", *bootstrapPeer)
@@ -148,18 +148,20 @@ func main() {
 		// }
 
 		if cfg.Updating {
-			fmt.Println("UPDATING IN FACT")
-			// Tests.Peer2ConcuUpdate(cfg) // ------------- MANAGE CONCURENCY !!!
-			// Tests.Peer_DeltaUpdating(cfg)   // ------------- MANAGE CONCURENCY !!!
-			Tests.LogootUpdate_OpBased(cfg) // Logoot, manage Concurrency
+			// fmt.Println("UPDATING IN FACT")
+			// Tests.Peer2ConcuUpdate(cfg) // ------------- 2P-Set MANAGE CONCURENCY !!!
+			Tests.Peer_DeltaUpdating(cfg) // ------------- MANAGE CONCURENCY !!!
+			// Tests.LogootUpdate_OpBased(cfg) // Logoot, manage Concurrency
+			// Tests.Peer_Updating(cfg) // ------------- State-based CLSet !!!
 		} else {
-			fmt.Println("NOT UPDATING FIOU")
-			// Tests.Peer2Concu(cfg) // ------------- MANAGE CONCURENCY !!!
-			// Tests.Peer_DeltaNotUpdating(cfg)  // ------------- MANAGE CONCURENCY !!!
-			Tests.LogootNoUpdate_OpBased(cfg) // Logoot, manage Concurrency
+			// fmt.Println("NOT UPDATING FIOU")
+			// Tests.Peer2Concu(cfg) // ------------------- 2P-Set MANAGE CONCURENCY !!!
+			Tests.Peer_DeltaNotUpdating(cfg) // ------------- MANAGE CONCURENCY !!!
+			// Tests.LogootNoUpdate_OpBased(cfg) // Logoot, manage Concurrency
+			// Tests.Peer_NotUpdating(cfg) // ------------- State-based CLSet !!!
 		}
 
-		// Tests.Peer2IPFS(*peerName, *bootstrapPeer, *updatesNB, *ntpServ) // ------------- NO CONCURENCY, ONLY IPFS ALONE !!!
+		// Tests.Peer2IPFS(cfg) // ------------- NO CONCURENCY, ONLY IPFS ALONE !!!
 		// Tests.Peer2(*peerName, *bootstrapPeer, *updatesNB, *ntpServ) // ------------- NO CONCURENCY, CRDT + IPFS  !!!
 	}
 }

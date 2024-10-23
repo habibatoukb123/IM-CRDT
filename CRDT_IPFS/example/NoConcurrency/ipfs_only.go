@@ -156,6 +156,7 @@ func (self *StrSet) Remove(x string) []byte {
 
 func (self *StrSet) CheckUpdate() []string {
 	files, err := ioutil.ReadDir(self.storage_emplacement + "/remote")
+
 	received := make([]string, 0)
 	if err != nil {
 		fmt.Printf("CheckUpdate - Checkupdate could not open folder\nerror: %s\n", err)

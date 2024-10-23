@@ -521,6 +521,8 @@ func checkFileExists(filePath string) bool {
 func (thisCRDTDag *CRDTCLSetStateBasedDag) CheckUpdate(sema *semaphore.Weighted) []TimeTuple {
 	received := make([]TimeTuple, 0)
 	files, err := ioutil.ReadDir(thisCRDTDag.GetDag().Nodes_storage_enplacement + "/remote")
+
+	// filez, err := os.OpenFile(thisCRDTDag.GetDag().Nodes_storage_enplacement+"/time/timeBIS.csv", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0755)
 	if err != nil {
 		fmt.Printf("CheckUpdate - Checkupdate could not open folder\nerror: %s\n", err)
 	} else {
@@ -528,8 +530,11 @@ func (thisCRDTDag *CRDTCLSetStateBasedDag) CheckUpdate(sema *semaphore.Weighted)
 		to_add := make([]([]byte), 0)
 		computetime := make([]int64, 0)
 		arrivalTime := make([]int64, 0)
+		// filez.WriteString(fmt.Sprintf("Files found : %d\nFolder : %s\n========\n", len(files), thisCRDTDag.GetDag().Nodes_storage_enplacement+"/remote"))
 		for _, file := range files {
-			if file.Size() > 0 && !strings.Contains(file.Name(), ".ArrivalTime") && checkFileExists(file.Name()+".ArrivalTime") {
+			// filez.WriteString("1\n")
+			if file.Size() > 0 && !strings.Contains(file.Name(), ".ArrivalTime") {
+				// filez.WriteString("2\n")
 				fil, err := os.OpenFile(thisCRDTDag.GetDag().Nodes_storage_enplacement+"/remote/"+file.Name(), os.O_RDONLY, os.ModeAppend)
 				if err != nil {
 					panic(fmt.Errorf("error in checkupdate, Could not open the sub file\nError: %s", err))
@@ -538,6 +543,7 @@ func (thisCRDTDag *CRDTCLSetStateBasedDag) CheckUpdate(sema *semaphore.Weighted)
 				if err != nil {
 					panic(fmt.Errorf("error in checkupdate, Could not get stat the sub file\nError: %s", err))
 				}
+				// filez.WriteString("3\n")
 				bytesread := make([]byte, stat.Size())
 				n, err := fil.Read(bytesread)
 				if err != nil {
@@ -558,6 +564,7 @@ func (thisCRDTDag *CRDTCLSetStateBasedDag) CheckUpdate(sema *semaphore.Weighted)
 				s := cid.Cid{}
 				json.Unmarshal(bytesread, &s)
 
+				// filez.WriteString("4\n")
 				err = os.Remove(thisCRDTDag.GetDag().Nodes_storage_enplacement + "/remote/" + file.Name())
 				if err != nil || errors.Is(err, os.ErrNotExist) {
 					panic(fmt.Errorf("error in checkupdate, Could not remove the sub file\nError: %s", err))
@@ -579,7 +586,8 @@ func (thisCRDTDag *CRDTCLSetStateBasedDag) CheckUpdate(sema *semaphore.Weighted)
 					panic(fmt.Errorf("error in checkupdate, Could not read the sub file\nError: %s", err))
 				}
 
-				// fmt.Println("stat.size :", stat.Size(), "read :", n)
+				// filez.WriteString("5\n")
+				fmt.Println("stat.size :", stat.Size(), "read :", n)
 				if int64(n) != stat.Size() {
 					panic(fmt.Errorf("error in checkupdate, Could not read entirely the sub file\nError: read %d byte unstead of %d", n, stat.Size()))
 				}
@@ -590,25 +598,33 @@ func (thisCRDTDag *CRDTCLSetStateBasedDag) CheckUpdate(sema *semaphore.Weighted)
 				time_of_arrival, _ := strconv.Atoi(string(bytesread))
 				arrivalTime = append(arrivalTime, int64(time_of_arrival))
 
+				// filez.WriteString("6\n")
 				//computation time, time to manage this file
 				timeToCompute := time.Since(ti).Nanoseconds()
 				computetime = append(computetime, timeToCompute)
 				ti = time.Now()
 			} else {
 				fmt.Printf("Remote folder contain a FILE of a NULL SIZE\n")
+				// filez.WriteString("7\n")
 			}
 		}
 
 		// apply the update on the peer's data
+		// filez.WriteString("8\n")
 		getSema(sema, thisCRDTDag.GetSys().Ctx)
+		// filez.WriteString("9\n")
 		received = thisCRDTDag.add_cids(to_add, computetime, arrivalTime, ti)
+		// filez.WriteString("10\n")
 
 		if len(to_add) > 0 {
 			thisCRDTDag.GetDag().UpdateRootNodeFolder()
 		}
 
+		// filez.WriteString("11\n")
 		returnSema(sema)
+		// filez.WriteString("12\n")
 	}
+	// filez.WriteString("13\n")
 	return received
 }
 

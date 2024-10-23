@@ -86,7 +86,7 @@ func TestDistance(t *testing.T) {
 
 	// distance((2,5,4,3,7),
 	//          (2,5,4,5,4))
-	if Distance(pos, posBis) != (MaxPos - 7 + MaxPos + 4) {
+	if Distance(pos, posBis) != uint64((MaxPos - 7 + MaxPos + 4)) {
 		t.Fatalf(`distance((2,5,4,3,7), (2,5,4,5,4)) = %d but we wanted : %d\n`, Distance(pos, posBis), MaxPos-7+MaxPos+4)
 	}
 
@@ -99,7 +99,7 @@ func TestDistance(t *testing.T) {
 
 	// distance((2,5,4,3,7),
 	//          (2,5,4,6))
-	if Distance(pos, posBis.Prefix(4)) != (MaxPos - 7 + MaxPos + MaxPos) {
+	if Distance(pos, posBis.Prefix(4)) != uint64((MaxPos - 7 + MaxPos + MaxPos)) {
 		t.Fatalf(`distance((2,5,4,3,7), (2,5,4,5,4)) = %d but we wanted : %d\n`, Distance(pos, posBis), MaxPos-7+MaxPos+4)
 	}
 

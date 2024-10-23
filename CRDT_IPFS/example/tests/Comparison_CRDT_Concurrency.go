@@ -2,8 +2,9 @@ package tests
 
 import (
 	"IPFS_CRDT/Config"
-	"IPFS_CRDT/example/Set"
+	Set "IPFS_CRDT/example/2PSet"
 	IpfsLink "IPFS_CRDT/ipfsLink"
+	"io/ioutil"
 
 	"context"
 	"errors"
@@ -44,7 +45,7 @@ func Peer1Concu(cfg Config.IM_CRDTConfig) {
 
 	sys1, err := IpfsLink.InitNode(cfg.PeerName, "", make([]byte, 0), cfg.SwarmKey, cfg.ParallelRetrieve)
 	if err != nil {
-		panic(fmt.Errorf("Failed To instanciate IFPS & LibP2P clients : %s", err))
+		panic(fmt.Errorf("failed To instanciate IFPS & LibP2P clients : %s", err))
 	}
 
 	str := ""
@@ -68,7 +69,7 @@ func Peer1Concu(cfg Config.IM_CRDTConfig) {
 
 	fileRead.WriteString("Taking Sema to write headers ... ")
 	getSema(sema, sys1.Ctx)
-	file.WriteString("CID,time,time_retrieve,time_compute,time_add_IPFS,time_encrypt,time_decrypt,time_Retreive_Whole_Batch,ArrivalTime\n")
+	file.WriteString("CID,time,time_retrieve,time_compute,time_add_IPFS,time_encrypt,time_decrypt,time_Retreive_Whole_Batch,ArrivalTime,TimeLookupFolderBatch,TimeRemoveFilesBatch\n")
 	returnSema(sema)
 	fileRead.WriteString("Header just written\n")
 	if err != nil {
@@ -77,18 +78,31 @@ func Peer1Concu(cfg Config.IM_CRDTConfig) {
 	fmt.Println("Starting the Set, sleeping 30s to wait others")
 
 	ti := time.Now()
+	var strList []Set.TimeTuple
 	// Sleep 60s before emiting updates to wait others
 	for time.Since(ti) < 60*time.Second {
-		time.Sleep(time.Duration(cfg.WaitTime) * time.Microsecond)
-
-		strList := SetCrdt1.CheckUpdate(sema)
+		strList = make([]Set.TimeTuple, 0)
+		if cfg.TestMode {
+			files, err := ioutil.ReadDir(SetCrdt1.GetDag().Nodes_storage_enplacement + "/remote")
+			if err != nil {
+				fmt.Printf("CheckUpdate - Checkupdate could not open folder\nerror: %s\n", err)
+			}
+			if len(files) >= 2*20 {
+				fileRead.WriteString("CheckUpdates 20 Verison ! assure\n= = = = = = =\n")
+				time.Sleep(time.Duration(cfg.WaitTime) * time.Microsecond)
+				strList = SetCrdt1.CheckUpdate_20Version(sema)
+			}
+		} else {
+			time.Sleep(time.Duration(cfg.WaitTime) * time.Microsecond)
+			strList = SetCrdt1.CheckUpdate(sema)
+		}
 		if len(strList) > 0 {
 			fileRead.WriteString("Just Received some updates\n")
 			t := strconv.Itoa(GetTime(cfg.NtpServ))
 
 			for j := 0; j < len(strList); j++ {
 				getSema(sema, sys1.Ctx)
-				file.WriteString(strList[j].Cid + "," + t + "," + strconv.Itoa(strList[j].RetrievalAlone) + "," + strconv.Itoa(strList[j].CalculTime) + ",0,0," + strconv.Itoa(strList[j].Time_decrypt) + "," + strconv.Itoa(strList[j].RetrievalTotal) + "," + strconv.Itoa(strList[j].ArrivalTime) + "\n")
+				file.WriteString(strList[j].Cid + "," + t + "," + strconv.Itoa(strList[j].RetrievalAlone) + "," + strconv.Itoa(strList[j].CalculTime) + ",0,0," + strconv.Itoa(strList[j].Time_decrypt) + "," + strconv.Itoa(strList[j].RetrievalTotal) + "," + strconv.Itoa(strList[j].ArrivalTime) + "," + strconv.Itoa(strList[j].TimeLookupFolder) + "," + strconv.Itoa(strList[j].TimeRemoveFiles) + "\n")
 				returnSema(sema)
 				fileRead.WriteString("writing 1 line\n")
 			}
@@ -100,20 +114,32 @@ func Peer1Concu(cfg Config.IM_CRDTConfig) {
 	ti = time.Now()
 
 	// Send updates concurrently every 1 seconds
-	go sendUpdates(cfg.UpdatesNB, &SetCrdt1, cfg.NtpServ, file, sys1.Cr.Id, sema)
+	go sendUpdates(cfg.UpdatesNB, &SetCrdt1, cfg.NtpServ, file, sys1.Cr.Id, sema, cfg)
 
 	//regularly scan files if there is any new received updates
 	for {
-		time.Sleep(time.Duration(cfg.WaitTime) * time.Microsecond)
-
-		strList := SetCrdt1.CheckUpdate(sema)
+		strList = make([]Set.TimeTuple, 0)
+		if cfg.TestMode {
+			files, err := ioutil.ReadDir(SetCrdt1.GetDag().Nodes_storage_enplacement + "/remote")
+			if err != nil {
+				fmt.Printf("CheckUpdate - Checkupdate could not open folder\nerror: %s\n", err)
+			}
+			if len(files) >= 2*20 {
+				fileRead.WriteString("CheckUpdates 20 Verison ! assure\n= = = = = = =\n")
+				time.Sleep(time.Duration(cfg.WaitTime) * time.Microsecond)
+				strList = SetCrdt1.CheckUpdate_20Version(sema)
+			}
+		} else {
+			time.Sleep(time.Duration(cfg.WaitTime) * time.Microsecond)
+			strList = SetCrdt1.CheckUpdate(sema)
+		}
 		if len(strList) > 0 {
 			fileRead.WriteString("Just Received some updates\n")
 			t := strconv.Itoa(GetTime(cfg.NtpServ))
 
 			for j := 0; j < len(strList); j++ {
 				getSema(sema, sys1.Ctx)
-				file.WriteString(strList[j].Cid + "," + t + "," + strconv.Itoa(strList[j].RetrievalAlone) + "," + strconv.Itoa(strList[j].CalculTime) + ",0,0," + strconv.Itoa(strList[j].Time_decrypt) + "," + strconv.Itoa(strList[j].RetrievalTotal) + "," + strconv.Itoa(strList[j].ArrivalTime) + "\n")
+				file.WriteString(strList[j].Cid + "," + t + "," + strconv.Itoa(strList[j].RetrievalAlone) + "," + strconv.Itoa(strList[j].CalculTime) + ",0,0," + strconv.Itoa(strList[j].Time_decrypt) + "," + strconv.Itoa(strList[j].RetrievalTotal) + "," + strconv.Itoa(strList[j].ArrivalTime) + "," + strconv.Itoa(strList[j].TimeLookupFolder) + "," + strconv.Itoa(strList[j].TimeRemoveFiles) + "\n")
 				returnSema(sema)
 				fileRead.WriteString("writing 1 line\n")
 			}
@@ -141,24 +167,45 @@ func Peer2Concu(cfg Config.IM_CRDTConfig) {
 	returnSema(sema)
 
 	file, err := os.OpenFile(cfg.PeerName+"/time/time.csv", os.O_CREATE|os.O_WRONLY, 0755)
-	file.WriteString("CID,time,time_retrieve,time_compute,time_add_IPFS,time_encrypt,time_decrypt,time_Retreive_Whole_Batch,ArrivalTime\n")
+	file.WriteString("CID,time,time_retrieve,time_compute,time_add_IPFS,time_encrypt,time_decrypt,time_Retreive_Whole_Batch,ArrivalTime,TimeLookupFolderBatch,TimeRemoveFilesBatch\n")
+	if err != nil {
+		panic(fmt.Errorf("error openning file file\nerror : %s", err))
+	}
+	fileRead, err := os.OpenFile(cfg.PeerName+"/time/FileRead.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0755)
 	if err != nil {
 		panic(fmt.Errorf("error openning file file\nerror : %s", err))
 	}
 	fmt.Printf("Starting the Set, updating %d times\n", cfg.UpdatesNB)
+	var strList []Set.TimeTuple
 	for {
-		time.Sleep(time.Duration(cfg.WaitTime) * time.Microsecond)
-
-		strList := SetCrdt1.CheckUpdate(sema)
+		strList = make([]Set.TimeTuple, 0)
+		if cfg.TestMode {
+			files, err := ioutil.ReadDir(SetCrdt1.GetDag().Nodes_storage_enplacement + "/remote")
+			if err != nil {
+				fmt.Printf("CheckUpdate - Checkupdate could not open folder\nerror: %s\n", err)
+			}
+			if len(files) >= 2*20 {
+				time.Sleep(time.Duration(cfg.WaitTime) * time.Microsecond)
+				strList = SetCrdt1.CheckUpdate_20Version(sema)
+				if len(strList) > 0 {
+					fileRead.WriteString(fmt.Sprintf("Timelookup : %d, timeRemove : %d\n", strList[0].TimeLookupFolder, strList[0].TimeRemoveFiles))
+					fileRead.WriteString(fmt.Sprintf("strList : %s\n\n", strList[0].Cid))
+				}
+			}
+		} else {
+			time.Sleep(time.Duration(cfg.WaitTime) * time.Microsecond)
+			strList = SetCrdt1.CheckUpdate(sema)
+		}
 		if len(strList) > 0 {
 			t := strconv.Itoa(GetTime(cfg.NtpServ))
 
 			for j := 0; j < len(strList); j++ {
-				file.WriteString(strList[j].Cid + "," + t + "," + strconv.Itoa(strList[j].RetrievalAlone) + "," + strconv.Itoa(strList[j].CalculTime) + ",0,0," + strconv.Itoa(strList[j].Time_decrypt) + "," + strconv.Itoa(strList[j].RetrievalTotal) + "," + strconv.Itoa(strList[j].ArrivalTime) + "\n")
+				file.WriteString(strList[j].Cid + "," + t + "," + strconv.Itoa(strList[j].RetrievalAlone) + "," + strconv.Itoa(strList[j].CalculTime) + ",0,0," + strconv.Itoa(strList[j].Time_decrypt) + "," + strconv.Itoa(strList[j].RetrievalTotal) + "," + strconv.Itoa(strList[j].ArrivalTime) + "," + strconv.Itoa(strList[j].TimeLookupFolder) + "," + strconv.Itoa(strList[j].TimeRemoveFiles) + "\n")
 			}
 		}
 
 	}
+	fileRead.Close()
 }
 
 func Peer2ConcuUpdate(cfg Config.IM_CRDTConfig) {
@@ -197,7 +244,7 @@ func Peer2ConcuUpdate(cfg Config.IM_CRDTConfig) {
 	fileRead, err := os.OpenFile(cfg.PeerName+"/time/FileRead.log", os.O_CREATE|os.O_WRONLY, 0755)
 	fileRead.WriteString("Taking Sema to write headers ... ")
 	getSema(sema, sys1.Ctx)
-	file.WriteString("CID,time,time_retrieve,time_compute,time_add_IPFS,time_encrypt,time_decrypt,time_Retreive_Whole_Batch,ArrivalTime\n")
+	file.WriteString("CID,time,time_retrieve,time_compute,time_add_IPFS,time_encrypt,time_decrypt,time_Retreive_Whole_Batch,ArrivalTime,TimeLookupFolderBatch,TimeRemoveFilesBatch\n")
 	returnSema(sema)
 	fileRead.WriteString("Header just written\n")
 	if err != nil {
@@ -207,17 +254,30 @@ func Peer2ConcuUpdate(cfg Config.IM_CRDTConfig) {
 
 	// Sleep 60s before emiting updates to wait others
 	ti := time.Now()
+	var strList []Set.TimeTuple
 	for time.Since(ti) < 60*time.Second {
-		time.Sleep(time.Duration(cfg.WaitTime) * time.Microsecond)
-
-		strList := SetCrdt1.CheckUpdate(sema)
+		strList = make([]Set.TimeTuple, 0)
+		if cfg.TestMode {
+			files, err := ioutil.ReadDir(SetCrdt1.GetDag().Nodes_storage_enplacement + "/remote")
+			if err != nil {
+				fmt.Printf("CheckUpdate - Checkupdate could not open folder\nerror: %s\n", err)
+			}
+			if len(files) >= 2*20 {
+				time.Sleep(time.Duration(cfg.WaitTime) * time.Microsecond)
+				strList = SetCrdt1.CheckUpdate_20Version(sema)
+				fileRead.WriteString("CheckUpdates 20 Verison ! assure\n= = = = = = =\n")
+			}
+		} else {
+			time.Sleep(time.Duration(cfg.WaitTime) * time.Microsecond)
+			strList = SetCrdt1.CheckUpdate(sema)
+		}
 		if len(strList) > 0 {
 			fileRead.WriteString("Just Received some updates\n")
 			t := strconv.Itoa(GetTime(cfg.NtpServ))
 
 			for j := 0; j < len(strList); j++ {
 				getSema(sema, sys1.Ctx)
-				file.WriteString(strList[j].Cid + "," + t + "," + strconv.Itoa(strList[j].RetrievalAlone) + "," + strconv.Itoa(strList[j].CalculTime) + ",0,0," + strconv.Itoa(strList[j].Time_decrypt) + "," + strconv.Itoa(strList[j].RetrievalTotal) + "," + strconv.Itoa(strList[j].ArrivalTime) + "\n")
+				file.WriteString(strList[j].Cid + "," + t + "," + strconv.Itoa(strList[j].RetrievalAlone) + "," + strconv.Itoa(strList[j].CalculTime) + ",0,0," + strconv.Itoa(strList[j].Time_decrypt) + "," + strconv.Itoa(strList[j].RetrievalTotal) + "," + strconv.Itoa(strList[j].ArrivalTime) + "," + strconv.Itoa(strList[j].TimeLookupFolder) + "," + strconv.Itoa(strList[j].TimeRemoveFiles) + "\n")
 				returnSema(sema)
 				fileRead.WriteString("writing 1 line in time.csv\n")
 			}
@@ -226,22 +286,35 @@ func Peer2ConcuUpdate(cfg Config.IM_CRDTConfig) {
 	}
 
 	// Send updates concurrently every 1 seconds
-	go sendUpdates(cfg.UpdatesNB, &SetCrdt1, cfg.NtpServ, file, sys1.Cr.Id, sema)
+	go sendUpdates(cfg.UpdatesNB, &SetCrdt1, cfg.NtpServ, file, sys1.Cr.Id, sema, cfg)
 
 	//regularly scan files if there is any new received updates
 	fmt.Printf("Starting the Set, updating %d times\n", cfg.UpdatesNB)
 	ti = time.Now()
 	k := 0
 	for k < cfg.UpdatesNB {
-		time.Sleep(time.Duration(cfg.WaitTime) * time.Microsecond)
+		strList = make([]Set.TimeTuple, 0)
+		if cfg.TestMode {
+			files, err := ioutil.ReadDir(SetCrdt1.GetDag().Nodes_storage_enplacement + "/remote")
+			if err != nil {
+				fmt.Printf("CheckUpdate - Checkupdate could not open folder\nerror: %s\n", err)
+			}
+			if len(files) >= 2*20 {
+				time.Sleep(time.Duration(cfg.WaitTime) * time.Microsecond)
+				strList = SetCrdt1.CheckUpdate_20Version(sema)
+				fileRead.WriteString("CheckUpdates 20 Verison ! assure\n= = = = = = =\n")
+			}
+		} else {
+			time.Sleep(time.Duration(cfg.WaitTime) * time.Microsecond)
+			strList = SetCrdt1.CheckUpdate(sema)
+		}
 
-		strList := SetCrdt1.CheckUpdate(sema)
 		if len(strList) > 0 {
 			fileRead.WriteString("Just Received some updates\n")
 			t := strconv.Itoa(GetTime(cfg.NtpServ))
 			for j := 0; j < len(strList); j++ {
 				getSema(sema, sys1.Ctx)
-				file.WriteString(strList[j].Cid + "," + t + "," + strconv.Itoa(strList[j].RetrievalAlone) + "," + strconv.Itoa(strList[j].CalculTime) + ",0,0," + strconv.Itoa(strList[j].Time_decrypt) + "," + strconv.Itoa(strList[j].RetrievalTotal) + "," + strconv.Itoa(strList[j].ArrivalTime) + "\n")
+				file.WriteString(strList[j].Cid + "," + t + "," + strconv.Itoa(strList[j].RetrievalAlone) + "," + strconv.Itoa(strList[j].CalculTime) + ",0,0," + strconv.Itoa(strList[j].Time_decrypt) + "," + strconv.Itoa(strList[j].RetrievalTotal) + "," + strconv.Itoa(strList[j].ArrivalTime) + "," + strconv.Itoa(strList[j].TimeLookupFolder) + "," + strconv.Itoa(strList[j].TimeRemoveFiles) + "\n")
 				returnSema(sema)
 				fileRead.WriteString("writing 1 line\n")
 			}
@@ -254,7 +327,9 @@ func Peer2ConcuUpdate(cfg Config.IM_CRDTConfig) {
 
 }
 
-func sendUpdates(nbUpdates int, SetCrdt1 *Set.CRDTSetOpBasedDag, ntpServ string, file *os.File, netID string, sema *semaphore.Weighted) {
+var letterRunes = []byte("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+
+func sendUpdates(nbUpdates int, SetCrdt1 *Set.CRDTSetOpBasedDag, ntpServ string, file *os.File, netID string, sema *semaphore.Weighted, cfg Config.IM_CRDTConfig) {
 	fileWrite, _ := os.OpenFile(SetCrdt1.GetCRDTManager().Nodes_storage_enplacement+"/time/FileWrite.log", os.O_CREATE|os.O_WRONLY, 0755)
 	fileWrite.WriteString(fmt.Sprintf("Starting the Set, updating %d times\n", nbUpdates))
 	defer func(fileWrite *os.File) {
@@ -263,16 +338,29 @@ func sendUpdates(nbUpdates int, SetCrdt1 *Set.CRDTSetOpBasedDag, ntpServ string,
 	}(fileWrite)
 	ti := time.Now()
 	k := 0
+	// s := make([]byte, 1048577)
+	// fileWrite.WriteString(fmt.Sprintf("String initialized to 1mB, it took %d seconds\n", int(time.Since(ti).Seconds())))
+	// for k < 1048577 {
+	// 	if k%1000 == 0 {
+	// 		fileWrite.WriteString(fmt.Sprintf("String initialized to 1mB, it took %d seconds\n", int(time.Since(ti).Seconds())))
+	// 	}
+	// 	s[k] = letterRunes[k%len(letterRunes)]
+	// 	k = k + 1
+	// }
+	str := ""
+	// str = string(s)
+	// fileWrite.WriteString(fmt.Sprintf("String initialized to 1mB, it took %d seconds\n", int(time.Since(ti).Seconds())))
+	k = 0
 	for k < nbUpdates {
 		time.Sleep(100 * time.Microsecond)
 
-		if time.Since(ti) >= time.Millisecond*1000 {
+		if time.Since(ti) >= time.Second*time.Duration(cfg.SyncTime) {
 			getSema(sema, context.Background())
 			fileWrite.WriteString("updating the data\n")
-			encodedCid, times := SetCrdt1.Add(netID + "VALUE ADDED" + strconv.Itoa(k))
+			encodedCid, times := SetCrdt1.Add(netID + "VALUE ADDED : " + str + strconv.Itoa(k))
 			fileWrite.WriteString("updating the data - taking sema\n")
 			fileWrite.WriteString("Semaphore tooken\n")
-			file.WriteString(encodedCid + "," + strconv.Itoa(GetTime(ntpServ)) + "," + "0,0," + strconv.Itoa(times.Time_add) + "," + strconv.Itoa(times.Time_encrypt) + ",0,0,0\n")
+			file.WriteString(encodedCid + "," + strconv.Itoa(GetTime(ntpServ)) + "," + "0,0," + strconv.Itoa(times.Time_add) + "," + strconv.Itoa(times.Time_encrypt) + ",0,0,0,0,0\n")
 			fileWrite.WriteString("returning Semaphore\n")
 			fileWrite.WriteString("WRITE - 1 line added to time.csv\n")
 			returnSema(sema)

@@ -46,7 +46,7 @@ func BootstrapStateBasedSetUp(cfg Config.IM_CRDTConfig) {
 	SetCrdt1 := CLSet.Create_CRDTCLSetStateBasedDag(sys1, cfg)
 	returnSema(sema)
 
-	fileRead.WriteString("Taking Sema to write headers ... ")
+	fileRead.WriteString("Taking Sema to write headers ... \n")
 	getSema(sema, sys1.Ctx)
 	file.WriteString("CID,time,time_retrieve,time_compute,time_add_IPFS,time_encrypt,time_decrypt,time_Retreive_Whole_Batch,ArrivalTime,sateSize\n")
 	returnSema(sema)
@@ -61,6 +61,7 @@ func BootstrapStateBasedSetUp(cfg Config.IM_CRDTConfig) {
 	for time.Since(ti) < 60*time.Second {
 		time.Sleep(time.Duration(cfg.WaitTime) * time.Microsecond)
 
+		// fileRead.WriteString("Checking updates 1\n")
 		strList := SetCrdt1.CheckUpdate(sema)
 		if len(strList) > 0 {
 			fileRead.WriteString("Just Received some updates\n")
@@ -90,6 +91,7 @@ func BootstrapStateBasedSetUp(cfg Config.IM_CRDTConfig) {
 	for {
 		time.Sleep(time.Duration(cfg.WaitTime) * time.Microsecond)
 
+		// fileRead.WriteString("Checking updates 2\n")
 		strList := SetCrdt1.CheckUpdate(sema)
 		if len(strList) > 0 {
 			fileRead.WriteString("Just Received some updates\n")
@@ -192,6 +194,7 @@ func Peer_Updating(cfg Config.IM_CRDTConfig) {
 	fileRead.WriteString("Taking Sema to write headers ... ")
 	getSema(sema, sys1.Ctx)
 	file.WriteString("CID,time,time_retrieve,time_compute,time_add_IPFS,time_encrypt,time_decrypt,time_Retreive_Whole_Batch,ArrivalTime,sateSize\n")
+
 	returnSema(sema)
 	fileRead.WriteString("Header just written\n")
 	if err != nil {

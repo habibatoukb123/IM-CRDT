@@ -6,3 +6,5 @@ scp analyseCSV.R $1:~/analyseCSV.R
 scp retrieveInfo.sh $1:~/retrieveInfo.sh
 scp CompileNodes.sh $1:~/CompileNodes.sh
 scp test_file.sh $1:~/test_file.sh
+scp get_network_csv.sh $1:~/get_network_csv.sh
+scp Change_disk.sh $1:~/Change_disk.sh

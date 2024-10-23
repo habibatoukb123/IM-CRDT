@@ -563,7 +563,7 @@ func (thisCRDTDag *CRDTCLSetDeltaBasedDag) CheckUpdate(sema *semaphore.Weighted)
 		computetime := make([]int64, 0)
 		arrivalTime := make([]int64, 0)
 		for _, file := range files {
-			if file.Size() > 0 && !strings.Contains(file.Name(), ".ArrivalTime") && checkFileExists(file.Name()+".ArrivalTime") {
+			if file.Size() > 0 && !strings.Contains(file.Name(), ".ArrivalTime") {
 				fil, err := os.OpenFile(thisCRDTDag.GetDag().Nodes_storage_enplacement+"/remote/"+file.Name(), os.O_RDONLY, os.ModeAppend)
 				if err != nil {
 					panic(fmt.Errorf("error in checkupdate, Could not open the sub file\nError: %s", err))

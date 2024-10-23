@@ -20,6 +20,7 @@ type IM_CRDTConfig struct {
 	IPFSbootstrap    string
 	SwarmKey         bool
 	ParallelRetrieve bool
+	TestMode         bool
 }
 
 func ToFile(cfg IM_CRDTConfig, file string) {

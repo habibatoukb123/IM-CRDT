@@ -3,6 +3,7 @@ package IpfsLink
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -359,6 +360,7 @@ type CID struct{ str string }
 
 func GetIPFS(ipfs *IpfsLink, cids []cid.Cid) ([]files.Node, error) {
 	// str_CID, err := ContentIdentifier.Decode(c)
+
 	var files []files.Node = make([]files.Node, len(cids))
 	var err error
 	var file *os.File
@@ -379,6 +381,7 @@ func GetIPFS(ipfs *IpfsLink, cids []cid.Cid) ([]files.Node, error) {
 	wg := sync.WaitGroup{}
 	errhapened := true
 	for errhapened {
+
 		errhapened = false
 		for index, c := range cids {
 
@@ -387,9 +390,18 @@ func GetIPFS(ipfs *IpfsLink, cids []cid.Cid) ([]files.Node, error) {
 				wg.Add(1)
 				go func(i int) {
 					str_CID := cids[i]
-					cctx, _ := context.WithDeadline(ipfs.Ctx, time.Now().Add(time.Second*30))
+					cctx, _ := context.WithDeadline(ipfs.Ctx, time.Now().Add(time.Second*3000))
 					//files[i], err = ipfs.IpfsCore.Dag().Get(cctx, str_CID)
-					files[i], err = ipfs.IpfsCore.Unixfs().Get(cctx, ifacepath.IpfsPath(str_CID))
+					array_one := make([]cid.Cid, 1)
+					array_one[0] = str_CID
+					channel_f := ipfs.IpfsCore.Dag().GetMany(cctx, array_one)
+					for f := range channel_f {
+						if f.Node != nil {
+							files[i], _ = ipfs.IpfsCore.Unixfs().Get(cctx, ifacepath.IpfsPath(f.Node.Cid()))
+						} else {
+							err = errors.New("NIL :/")
+						}
+					}
 					if err != nil {
 						printErr("could not get file with CID - %s : %s", clocal, err)
 						errhapened = true
