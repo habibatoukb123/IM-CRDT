@@ -17,7 +17,29 @@ head -n 1 "$file_NODES"| cut -d'.' -f1 > bootstrap
 SLAVES=$(cat other)
 MASTER=$(cat bootstrap)
 
+#### Change disk if necessary #####
+echo "Preparing Nodes' disk"
+for SLAVE in $SLAVES
+do
+scp Change_disk.sh root@$SLAVE:~/Change_disk.sh &
+done 
+scp Change_disk.sh root@$MASTER:~/Change_disk.sh
+sleep 10s
+
+for SLAVE in $SLAVES
+do
+ssh root@$SLAVE "./Change_disk.sh" &
+done
+
+ssh root@$MASTER "./Change_disk.sh"
+echo "sleep 10"
+sleep 10s
+
+echo "compile NODE"
 ./CompileNodes.sh go_trans.tar.gz
+# echo "limit bandwidth"
+# ./limit.sh > /dev/null
+echo "RunCI"
 ./Run_CI.sh $NumberNodes $NumberUpdates $nbpeersUpdating $file_NODES $waitTime $SyncTime
 
 echo "Every peers has been started, starting iftop"

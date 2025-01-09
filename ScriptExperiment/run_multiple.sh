@@ -9,11 +9,11 @@ fileNODE=$1
 
 #              
 ARRAY_WAITTIME=( 500 )
-ARRAY_SyncTime=( 1 3 5 )
+ARRAY_SyncTime=( 1 )
 ARRAY_Repetition=( 1 ) # 4 5 )
-ARRAY_NbPeers=( 10 20 30 40 50 ) # 30 50 
-ARRAY_UpdatesNb=( 10 100 500 ) # 400 600 800 1000 ) #  10 100 
-ARRAY_NbPeers_Updating=( 1 30 ) # 30 50
+ARRAY_NbPeers=( 20 ) # 30 50 
+ARRAY_UpdatesNb=( 500 ) # 400 600 800 1000 ) #  10 100 
+ARRAY_NbPeers_Updating=( 20 ) # 
 
 
 
@@ -21,43 +21,43 @@ ARRAY_NbPeers_Updating=( 1 30 ) # 30 50
 rm advancement
 
 ###read csv in###
-nbline=1
-while [ $nbline -lt $(awk 'END { print NR }' configs.csv) ]
-do
-{
-     lineskip=$nbline
-while IFS=, read -r nbpeers nbpeersUpdating nbupdates SyncTime 
-do 
+# nbline=1
+# while [ $nbline -lt $(awk 'END { print NR }' configs.csv) ]
+# do
+# {
+#      lineskip=$nbline
+# while IFS=, read -r nbpeers nbpeersUpdating nbupdates SyncTime numeroUNIQUE
+# do 
 
-    if ((lineskip))
-    then
-        ((lineskip--))
-     else
-        echo "nbpeers:${nbpeers} nbpeersUpdating:${nbpeersUpdating} nbupdates:${nbupdates} SyncTime:${SyncTime}"
-        waitTime=${ARRAY_WAITTIME[0]}
-        numeroUNIQUE=${ARRAY_Repetition[0]}
+#     if ((lineskip))
+#     then
+#         ((lineskip--))
+#      else
+#         echo "nbpeers:${nbpeers} nbpeersUpdating:${nbpeersUpdating} nbupdates:${nbupdates} SyncTime:${SyncTime} Version:${numeroUNIQUE}"
+#         waitTime=${ARRAY_WAITTIME[0]}
 ###end of read csv in ###
 
 ###normal in###
-# for numeroUNIQUE in "${ARRAY_Repetition[@]}"
-# do
+for numeroUNIQUE in "${ARRAY_Repetition[@]}"
+do
 
-# for nbpeers in "${ARRAY_NbPeers[@]}"
-# do
-# for nbpeersUpdating in "${ARRAY_NbPeers_Updating[@]}"
-# do
-# for nbupdates in "${ARRAY_UpdatesNb[@]}"
-# do
+for nbpeers in "${ARRAY_NbPeers[@]}"
+do
+for nbpeersUpdating in "${ARRAY_NbPeers_Updating[@]}"
+do
+for nbupdates in "${ARRAY_UpdatesNb[@]}"
+do
 
 if [ $nbpeers -lt $nbpeersUpdating ]
 then
 echo "$nbpeers < $nbpeersUpdating"
 else
 
-# for waitTime in "${ARRAY_WAITTIME[@]}"
-# do
-# for SyncTime in "${ARRAY_SyncTime[@]}"
-# do
+for waitTime in "${ARRAY_WAITTIME[@]}"
+do
+for SyncTime in "${ARRAY_SyncTime[@]}"
+do
+
 ###end of normal in###
 
 rm "/home/quacher/.ssh/known_hosts"
@@ -85,26 +85,26 @@ done
 
 ###normal out###
 
-# done
-# done
-fi
+done 
+done
+fi 
 
-# done
-# done
-# done
-# done
+done
+done
+done
+done
 
 ###end of normal out###
 
 
 ###Read csv Out###
-fi
-done
-}  < configs.csv
-((nbline++))
-echo ""
-echo ""
-done
+# fi
+# done
+# }  < configs.csv
+# ((nbline++))
+# echo ""
+# echo ""
+# done
 ##end of readcsv###
 
 fi

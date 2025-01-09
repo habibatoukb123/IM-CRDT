@@ -31,20 +31,6 @@ echo "MASTER"
 echo $MASTER
 echo "Building the  GO implementation"
 
-#### Change disk if necessary #####
-# echo "Preparing Nodes' disk"
-# for SLAVE in $SLAVES
-# do
-# scp Change_disk.sh root@$SLAVE:~/Change_disk.sh
-# done 
-# sleep 2s
-# for SLAVE in $SLAVES
-# do
-# ssh root@$SLAVE "./Change_disk.sh  > /dev/null " &
-# done
-
-# scp Change_disk.sh root@$MASTER:~/Change_disk.sh
-# ssh root@$MASTER "./Change_disk.sh  > /dev/null "
 
 echo "running the bootstrap in ${MASTER} node1"
 ssh root@$MASTER "rm  CRDT_IPFS/ID"
@@ -85,9 +71,9 @@ x=$(( $nbpeersUpdating - 1 ))
 echo "x: "$x
 
 
+### Sending the IP of the bootstrap to all other for IPFS and libp2p pubsub ###
 scp root@$MASTER:~/CRDT_IPFS/IDBootstrapIPFS IDBootstrapIPFS
 sleep 5s 
-
 for SLAVE in $SLAVES
 do
 scp IDBootstrapIPFS root@$SLAVE:~/CRDT_IPFS/IDBootstrapIPFS
