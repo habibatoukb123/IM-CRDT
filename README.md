@@ -1,6 +1,8 @@
-# IM-CRDT Project
+# CRONUS Project
 
 This project has been made in LORIA (INRIA Nancy, France).
+
+It was originally nammed IM-CRDT, The namme has then been modified to CRONUS, to fit better the novelty bringed recently in this project.
 
 It aims to develop and test integration of Merkle-CRDT in IPFS.
 The developpement does define simple mutable data types such as String Set or Counter, however this is made to be able to represent any kind of mutable data, as long as each update it is transcripted in CRDT's Payload respecting the SEC property.
