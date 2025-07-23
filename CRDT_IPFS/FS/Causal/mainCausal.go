@@ -273,13 +273,104 @@ func SyncAll(replicas ...*NodeSetCRDT) {
 	}
 }
 
-func ReattachOrphans(ns *NodeSetCRDT) {
+// Reattach orphans to root node logic
+/* func ReattachOrphans(ns *NodeSetCRDT) {
 	for id, node := range ns.AddSet {
 		if node.ParentID != "" {
 			if _, ok := ns.AddSet[node.ParentID]; !ok {
 				node.ParentID = "root"
 				ns.AddSet[id] = node
 			}
+		}
+	}
+} */
+
+// Reattach orphans in the logic of Mehdi Ahmed-Nacer et al: File system on CRDT paper
+// Allows for hierarchical layer conflict resolution
+func ReattachOrphans(ns *NodeSetCRDT, policy string) {
+	for id, node := range ns.AddSet {
+		if node.ParentID != "" && !ns.Exists(node.ParentID) {
+			switch policy {
+			case "rootPol":
+				node.ParentID = "root"
+			case "skip":
+				// delete(ns.AddSet, id) // Or mark as skipped
+				ts := time.Now().UnixNano()
+				ns.Remove(node.ID, Timestamped{
+					Timestamp: ts,
+					ReplicaID: node.ReplicaID,
+				})
+				continue
+			// ************************* WORKS BUT TRY TO OPTIMIZE LOOKING FOR THE PARENT NAME **********
+			// ************************* POTENTIALLY ANOTHER WAY TO TO MAP THE NODES ******
+			case "compact":
+				parentID := node.ParentID
+				// fmt.Println(parentID, node.Name)
+				// // Check if parentID is actually an ID — if not found, try to find by name
+				// fmt.Println(ns.Exists(parentID))
+				if !ns.Exists(parentID) {
+					// Inline search: find node by name
+					for id, n := range ns.AddSet {
+						// fmt.Println("First confition", id, n)
+						if n.Name == parentID {
+							parentID = id
+							break
+						}
+					}
+				}
+				// fmt.Println("new parentid", parentID)
+				// Walk up ancestors until we find an existing one
+				for parentID != "" && !ns.Exists(parentID) {
+					parentNode, ok := ns.AddSet[parentID]
+					// fmt.Println(parentNode)
+					if !ok {
+						break
+					}
+					parentID = parentNode.ParentID
+				}
+
+				if parentID == "" {
+					node.ParentID = "root"
+				} else {
+					node.ParentID = parentID
+				}
+			case "reappear":
+				// re-create ghost parent with dummy metadata
+				parentID := node.ParentID
+				// fmt.Println(parentID)
+				// If the parent ID doesn't exist, we try to find its real ID (if parentID is a name)
+				if !ns.Exists(parentID) {
+					// Look up by name if necessary
+					for id, n := range ns.AddSet {
+						if n.Name == parentID {
+							parentID = id
+							break
+						}
+					}
+				}
+
+				if ghost, ok := ns.AddSet[parentID]; ok && !ns.Exists(parentID) {
+					// Only re-add if it was actually deleted
+					// fmt.Println("Ghost", ghost, ghost.ParentID)
+					removal, removed := ns.RemoveSet[parentID]
+					created := ghost.Created
+					if removed {
+						created = removal.Timestamp + 1 // Make it later than the removal
+					} else {
+						created = node.Created + 1 // fallback
+					}
+					ns.Add(Node{
+						ID:        ghost.ID, // It matches original ID so children can link back to it
+						Name:      ghost.Name,
+						Type:      ghost.Type,
+						ParentID:  ghost.ParentID, // Preserve tree structure
+						Created:   created,        // must be older than delete action since it is LWW so it can overwrite that
+						ReplicaID: node.ReplicaID,
+					})
+				}
+			}
+			ns.AddSet[id] = node
+			// fmt.Println(ns, id)
 		}
 	}
 }
@@ -376,19 +467,22 @@ func main() {
 	replica1.Add(root)
 	replica2.Add(root)
 
-	// FILE1 - Created by replica1
-	file1 := NewNode("file1", "root", File, replicaID1)
-	file1.Content.AppendLine(0, "Line 0 - Initial text in file 1", replicaID1)
-	file1.Content.AppendLine(1, "Line 1 - Second line", replicaID1)
-	replica1.Add(file1)
+	// DIR1 - Created by replica1
+	dir1 := NewNode("dir1", "root", Dir, replicaID1)
+	// file1.Content.AppendLine(0, "Line 0 - Initial text in file 1", replicaID1)
+	// file1.Content.AppendLine(1, "Line 1 - Second line", replicaID1)
+	replica1.Add(dir1)
 
 	// FILE2 - Created by replica2
 	file2 := NewNode("file2", "root", File, replicaID2)
 	file2.Content.AppendLine(0, "Initial text in file 2", replicaID2)
 	replica2.Add(file2)
 
-	// FILE3 - Created by replica 1, nested under FILE1
-	file3 := NewNode("file3", "file1", File, replicaID1)
+	dir2 := NewNode("dir2", "dir1", Dir, replicaID2)
+	replica2.Add(dir2)
+
+	// FILE3 - Created by replica 1, nested under DIR1
+	file3 := NewNode("file3", "dir2", File, replicaID1)
 	file3.Content.AppendLine(0, "Initial text in file 3", replicaID1)
 	replica1.Add(file3)
 
@@ -401,33 +495,62 @@ func main() {
 	SyncAll(replica1, replica2)
 
 	// Lines added from different replicas
-	file1rep2 := replica2.GetNodeByName("file1")
-	file1rep2.Content.AppendLine(2, "Edits to file 1 by replica 2", replicaID2)
+	// file1rep2 := replica2.GetNodeByName("file1")
+	// file1rep2.Content.AppendLine(2, "Edits to file 1 by replica 2", replicaID2)
 
 	file3rep2 := replica2.GetNodeByName("file3")
 	file3rep2.Content.AppendLine(1, "Edits to file 3 by replica 2", replicaID2)
 
 	file4rep1 := replica1.GetNodeByName("file4")
-	file4rep1.Content.AppendLine(1, "Edits to file 4 by replica 1", replicaID1)
+	file4rep1.Content.AppendLine(2, "Edits to file 4 by replica 1", replicaID1)
 
 	// ---- TOMBSTONE DELETE ----
 	// Replica2 deletes line 1 from file1
-	file1rep2.Content.RemoveLine(1, replicaID2)
+	file3rep2.Content.RemoveLine(1, replicaID2)
+	// replica2.Remove()
 
 	// Sync again
 	SyncAll(replica1, replica2)
 
-	// replica2.Remove(file1rep2.ID, Timestamped{
-	// 	Timestamp: time.Now().UnixNano() + 1,
-	// 	ReplicaID: replicaID2,
-	// })
+	// tree1 := BuildTree(replica1)
+	// PrintTree(tree1)
+
+	// ------ ORPHAN NODES -----
+	// ************ seems to get applied even without syncing again, check that out
+	replica1.Remove(dir2.ID, Timestamped{
+		Timestamp: time.Now().UnixNano() + 1,
+		ReplicaID: replicaID1,
+	})
 
 	// SyncAll(replica1, replica2)
+	// fmt.Println(replica1)
 
+	fmt.Println("== Before Reattach ==")
+	treeBefore := BuildTree(replica1)
+	PrintTree(treeBefore)
+
+	// TEST 1: Root Policy -- reattach to root directly
+	fmt.Println("\n== After Reattach (rootPol) ==")
+	ReattachOrphans(replica1, "rootPol")
 	tree1 := BuildTree(replica1)
 	PrintTree(tree1)
 
-	// tree2 := BuildTree(replica2)
+	// // TEST 2: Skip Policy -- priority to remove
+	// fmt.Println("\n== After Reattach (skip) ==")
+	// ReattachOrphans(replica1, "skip")
+	// tree2 := BuildTree(replica1)
 	// PrintTree(tree2)
+
+	// // TEST 3: Compact Policy
+	// fmt.Println("\n== After Reattach (compact) ==")
+	// ReattachOrphans(replica1, "compact")
+	// tree3 := BuildTree(replica1)
+	// PrintTree(tree3)
+
+	// // TEST 4: Reappear Policy
+	// fmt.Println("\n== After Reattach (reappear) ==")
+	// ReattachOrphans(replica1, "reappear")
+	// tree4 := BuildTree(replica1)
+	// PrintTree(tree4)
 
 }
