@@ -375,6 +375,51 @@ func ReattachOrphans(ns *NodeSetCRDT, policy string) {
 	}
 }
 
+func ResolveNameConflicts(ns *NodeSetCRDT) {
+	seen := make(map[string]map[string]Node)
+	// fmt.Println(seen)
+	for _, node := range ns.AddSet {
+		if !ns.Exists(node.ID) {
+			continue
+		}
+
+		parentMap, ok := seen[node.ParentID]
+		if !ok {
+			parentMap = make(map[string]Node)
+			seen[node.ParentID] = parentMap
+		}
+
+		existing, exists := parentMap[node.Name]
+		if exists {
+			if node.Type == existing.Type {
+				// Case two files, same name, same place, contents of files merged. Keep one of the files only.
+				if node.Type == File && node.Content != nil && existing.Content != nil {
+					node.Content.Merge(existing.Content)
+
+					ts := time.Now().UnixNano()
+					ns.Remove(existing.ID, Timestamped{
+						Timestamp: ts,
+						ReplicaID: existing.ReplicaID,
+					})
+					continue
+				}
+			} else {
+
+				// Case of one file, one dir, rename the file by adding an extension with the origin (here the replica)
+				if node.Type == File {
+					node.Name = node.Name + "[" + node.ReplicaID + "]"
+				} else if existing.Type == File {
+					existing.Name = existing.Name + "[" + existing.ReplicaID + "]"
+					ns.AddSet[existing.ID] = existing
+				}
+			}
+		}
+
+		parentMap[node.Name] = node
+		ns.AddSet[node.ID] = node
+	}
+}
+
 func PrintContent(file Node) {
 	var keys []int
 	for k, line := range file.Content.Lines {
@@ -407,7 +452,7 @@ func BuildTree(ns *NodeSetCRDT) map[string][]Node {
 }
 
 func PrintTree(tree map[string][]Node) {
-	fmt.Println("Tree Structure")
+	fmt.Println()
 	for parent, children := range tree {
 		if parent == "" {
 			continue
@@ -481,6 +526,9 @@ func main() {
 	dir2 := NewNode("dir2", "dir1", Dir, replicaID2)
 	replica2.Add(dir2)
 
+	dir3 := NewNode("file2", "root", Dir, replicaID1)
+	replica1.Add(dir3)
+
 	// FILE3 - Created by replica 1, nested under DIR1
 	file3 := NewNode("file3", "dir2", File, replicaID1)
 	file3.Content.AppendLine(0, "Initial text in file 3", replicaID1)
@@ -490,6 +538,12 @@ func main() {
 	file4 := NewNode("file4", "root", File, replicaID2)
 	file4.Content.AppendLine(0, "Initial text in file 4", replicaID2)
 	replica2.Add(file4)
+
+	// FILE5 - Created by rpelica 1 in same place and with same name as file4
+	// Used to test the resolve name conflicts fucntion
+	file5 := NewNode("file4", "root", File, replicaID1)
+	file5.Content.AppendLine(1, "Initial text in file 5, which has the same name as file 4", replicaID1)
+	replica1.Add(file5)
 
 	// First sync
 	SyncAll(replica1, replica2)
@@ -524,16 +578,19 @@ func main() {
 
 	// SyncAll(replica1, replica2)
 	// fmt.Println(replica1)
-
-	fmt.Println("== Before Reattach ==")
-	treeBefore := BuildTree(replica1)
-	PrintTree(treeBefore)
-
-	// TEST 1: Root Policy -- reattach to root directly
-	fmt.Println("\n== After Reattach (rootPol) ==")
 	ReattachOrphans(replica1, "rootPol")
-	tree1 := BuildTree(replica1)
-	PrintTree(tree1)
+	ResolveNameConflicts(replica1)
+
+	// fmt.Println("== Before Reattach ==")
+	fmt.Println("\n===== Tree structure after layers' conflicts resolution =====")
+	tree := BuildTree(replica1)
+	PrintTree(tree)
+
+	// // TEST 1: Root Policy -- reattach to root directly
+	// fmt.Println("\n== After Reattach (rootPol) ==")
+	// ReattachOrphans(replica1, "rootPol")
+	// tree1 := BuildTree(replica1)
+	// PrintTree(tree1)
 
 	// // TEST 2: Skip Policy -- priority to remove
 	// fmt.Println("\n== After Reattach (skip) ==")
