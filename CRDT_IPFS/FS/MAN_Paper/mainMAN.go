@@ -39,9 +39,36 @@ type FileCRDT struct {
 
 // type DirCRDT struct{}
 
+type Node struct {
+	Path       string
+	Name       string
+	ParentPath string
+	Type       NodeType
+	Content    *FileCRDT
+	Created    int64
+	ReplicaID  string
+}
+
+type NodeKey struct {
+	Path string
+	Type NodeType
+}
+
+type NodeSetCRDT struct {
+	AddSet    map[NodeKey]Node
+	RemoveSet map[NodeKey]Timestamped
+	// VersionClock VersionVector
+}
+
 type TreeNode struct {
 	Node     Node
 	Children []*TreeNode
+}
+
+type Replica struct {
+	ID      string
+	Clock   int64
+	NodeSet *NodeSetCRDT
 }
 
 // AppendLine(index, ...) adds a line at a specific index.
@@ -116,30 +143,14 @@ func (f *FileCRDT) Merge(other *FileCRDT) {
 	}
 }
 
-type Node struct {
-	Path       string
-	Name       string
-	ParentPath string
-	Type       NodeType
-	Content    *FileCRDT
-	Created    int64
-	ReplicaID  string
-}
-
-type NodeKey struct {
-	Path string
-	Type NodeType
-}
-
-type NodeSetCRDT struct {
-	AddSet    map[NodeKey]Node
-	RemoveSet map[NodeKey]Timestamped
-	// VersionClock VersionVector
-}
-
 /* ------------------------------------------------------------------------------------------------------------------------------
 ------------------------------------------------------ REPLICATION LAYER --------------------------------------------------------
 --------------------------------------------------------------------------------------------------------------------------------- */
+
+func (r *Replica) NextTimestamp() int64 {
+	r.Clock++
+	return r.Clock
+}
 
 // Constructor
 func NewNodeSetCRDT() *NodeSetCRDT {
@@ -360,10 +371,10 @@ func ResolveNameConflicts(tree *TreeNode, ns *NodeSetCRDT) {
 				// File vs Dir → Rename file
 				if child.Node.Type == File {
 					child.Node.Name += "[" + child.Node.ReplicaID + "]"
-					fmt.Print(child.Node.Name)
+					// fmt.Print(child.Node.Name)
 				} else if existing.Node.Type == File {
 					existing.Node.Name += "[" + existing.Node.ReplicaID + "]"
-					fmt.Print(existing.Node.Name)
+					// fmt.Print(existing.Node.Name)
 					existingKey := NodeKey{Path: existing.Node.Path, Type: existing.Node.Type}
 					ns.AddSet[existingKey] = existing.Node
 				}
@@ -419,72 +430,40 @@ func NewNode(path, name, parentID string, t NodeType, timestamp int64, replicaID
 	}
 }
 
+func (r *Replica) AddNode(path, name, parent string, t NodeType) {
+	ts := r.NextTimestamp()
+	node := NewNode(path, name, parent, t, ts, r.ID)
+	r.NodeSet.Add(node)
+}
+
+func (r *Replica) RemoveNode(path string, typ NodeType) {
+	ts := r.NextTimestamp()
+	r.NodeSet.Remove(path, typ, ts, r.ID)
+}
+
 func main() {
-	replicaID1 := "replica1"
-	replicaID2 := "replica2"
+	replica1 := &Replica{ID: "r1", NodeSet: NewNodeSetCRDT()}
+	replica2 := &Replica{ID: "r2", NodeSet: NewNodeSetCRDT()}
 
-	replica1 := NewNodeSetCRDT()
-	replica2 := NewNodeSetCRDT()
+	replica1.AddNode("/", "root", "", Dir)
+	replica2.AddNode("/", "root", "", Dir)
 
-	// Common timestamp base
-	base := time.Now().UnixNano()
+	replica1.AddNode("/home", "home", "/", Dir)
+	replica2.AddNode("/home", "home", "/", Dir)
 
-	root := Node{
-		Path:       "/",
-		Name:       "/",
-		ParentPath: "",
-		Type:       Dir,
-		Created:    base,
-		ReplicaID:  replicaID1,
-	}
+	replica1.AddNode("/home/docs", "docs", "/home", Dir)
 
-	home := Node{
-		Path:       "/home",
-		Name:       "home",
-		ParentPath: "/",
-		Type:       Dir,
-		Created:    base + 1,
-		ReplicaID:  replicaID1,
-	}
+	replica2.AddNode("/user", "user", "/", Dir)
 
-	replica1.Add(root)
-	replica2.Add(root)
+	replica2.AddNode("/home/docs/private", "private", "/home/docs", Dir)
 
-	replica1.Add(home)
-	replica2.Add(home)
+	replica1.AddNode("/home/docs/private/file1.txt", "file1.txt", "/home/docs/private", File)
 
-	docs := NewNode("/home/docs", "docs", "/home", Dir, (base + 2), replicaID1)
-	replica1.Add(docs)
+	replica2.AddNode("/home/docs/private/file1.txt", "file1.txt", "/home/docs/private", Dir)
 
-	user := NewNode("/user", "user", "/", Dir, (base + 3), replicaID2)
-	replica2.Add(user)
+	replica2.RemoveNode("/home/docs/private", Dir)
 
-	private := NewNode("/home/docs/private", "private", "/home/docs", Dir, (base + 4), replicaID2)
-	replica2.Add(private)
-
-	file1 := NewNode("/home/docs/private/file1.txt", "file1.txt", "/home/docs/private", File, (base + 5), replicaID1)
-	replica1.Add(file1)
-
-	dir1 := NewNode("/home/docs/private/file1.txt", "file1.txt", "/home/docs/private", Dir, (base + 6), replicaID2)
-	replica2.Add(dir1)
-
-	// Replica 2: deletes /docs/file.txt even later
-	replica2.Remove("/home/docs/private", Dir, base+8, "replica2")
-
-	// // Now merge replica2 into replica1
-	// replica1.Merge(replica2)
-
-	// fmt.Println(replica1)
-	// PrintVisibleNodes(replica1)
-
-	// fmt.Println("-----------------------------------------")
-
-	// fmt.Println(replica2)
-	// PrintVisibleNodes(replica2)
-
-	// fmt.Println("-----------------------------------------")
-
-	replica1.Merge(replica2)
+	replica1.NodeSet.Merge(replica2.NodeSet)
 
 	fmt.Println("-------------------------------------------")
 
@@ -493,7 +472,7 @@ func main() {
 
 	// fmt.Print(replica1)
 	// fmt.Print(replica2)
-	tree := FinalTree(replica1, "reappear")
+	tree := FinalTree(replica1.NodeSet, "root")
 	// ResolveNameConflicts(tree, replica1)
 	// ReattachOrphans(replica1, "compact")
 	PrintTree(tree, "")
@@ -501,43 +480,3 @@ func main() {
 	// fmt.Println(replica1)
 	fmt.Println("-------------------------------------------")
 }
-
-// type PathEntry struct {
-// 	Path string
-// 	Type NodeType
-// }
-
-// type FileSystemCRDT struct {
-// 	Elements   map[PathEntry]*FileCRDT
-// 	Tombstones map[PathEntry]Timestamped
-// }
-
-// func NewFileSystemCRDT() *FileSystemCRDT {
-// 	return &FileSystemCRDT{
-// 		Elements:   make(map[PathEntry]*FileCRDT),
-// 		Tombstones: make(map[PathEntry]Timestamped),
-// 	}
-// }
-
-// func (fs *FileSystemCRDT) Add(path string, t NodeType, replicaID string) {
-// 	entry := PathEntry{
-// 		Path: path,
-// 		Type: t,
-// 	}
-// 	ts := time.Now().UnixNano()
-
-// 	// LWW semantics for add vs. delete.
-// 	// If it has already been deleted at a later timestamp, then do not even do the add.
-// 	if del, exists := fs.Tombstones[entry]; exists && del.Timestamp >= ts {
-// 		return // Already deleted more recently
-// 	}
-
-// 	// If not already present, add new
-// 	if _, exists := fs.Elements[entry]; !exists {
-// 		if t == File {
-// 			fs.Elements[entry] = &FileCRDT{}
-// 		} else {
-// 			fs.Elements[entry] = &DirCRDT{}
-// 		}
-// 	}
-// }
