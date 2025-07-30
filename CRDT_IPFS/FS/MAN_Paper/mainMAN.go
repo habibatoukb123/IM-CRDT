@@ -257,6 +257,7 @@ func ReattachOrphans(ns *NodeSetCRDT, policy string) {
 			case "skip":
 				// delete(ns.AddSet, id) // Or mark as skipped
 				ns.Remove(node.Path, node.Type, node.Created+1, node.ReplicaID)
+				fmt.Println(node.Path, "removed by reattach orphans")
 				continue
 
 			case "compact":
@@ -365,6 +366,7 @@ func ResolveNameConflicts(tree *TreeNode, ns *NodeSetCRDT) {
 
 					// Remove the existing duplicate from CRDT (node ID)
 					ns.Remove(existing.Node.Path, existing.Node.Type, existing.Node.Created+1, existing.Node.ReplicaID)
+					fmt.Println(existing.Node.Path, "removed by resolve name conflicts")
 				}
 			} else {
 				// fmt.Println("file vs dir")
@@ -402,7 +404,6 @@ func FinalTree(ns *NodeSetCRDT, policy string) *TreeNode {
 ------------------------------------------------------------ HELPERS ------------------------------------------------------------
 --------------------------------------------------------------------------------------------------------------------------------- */
 
-// Functions used to print lookup functions from hierarchy and naming layer
 func PrintTree(node *TreeNode, indent string) {
 	if node == nil {
 		return
@@ -441,42 +442,88 @@ func (r *Replica) RemoveNode(path string, typ NodeType) {
 	r.NodeSet.Remove(path, typ, ts, r.ID)
 }
 
-func main() {
+func runDistributedSys() {
 	replica1 := &Replica{ID: "r1", NodeSet: NewNodeSetCRDT()}
 	replica2 := &Replica{ID: "r2", NodeSet: NewNodeSetCRDT()}
 
 	replica1.AddNode("/", "root", "", Dir)
 	replica2.AddNode("/", "root", "", Dir)
 
-	replica1.AddNode("/home", "home", "/", Dir)
-	replica2.AddNode("/home", "home", "/", Dir)
+	// Periodic merge (anti-entropy)
+	go func() {
+		for {
+			time.Sleep(1 * time.Second)
+			replica1.NodeSet.Merge(replica2.NodeSet)
+			replica2.NodeSet.Merge(replica1.NodeSet)
+			fmt.Println("[MERGE] Replicas exchanged state")
+		}
+	}()
 
-	replica1.AddNode("/home/docs", "docs", "/home", Dir)
+	// Fixed operations on replica1
+	go func() {
+		time.Sleep(500 * time.Millisecond)
+		replica1.AddNode("/home", "home", "/", Dir)
+		fmt.Println("[r1] Added /home")
 
-	replica2.AddNode("/user", "user", "/", Dir)
+		time.Sleep(500 * time.Millisecond)
+		replica1.AddNode("/home/docs", "docs", "/home", Dir)
+		fmt.Println("[r1] Added /home/docs")
 
-	replica2.AddNode("/home/docs/private", "private", "/home/docs", Dir)
+		time.Sleep(500 * time.Millisecond)
+		replica1.AddNode("/home/docs/private/file1.txt", "file1.txt", "/home/docs/private", File)
+		fmt.Println("[r1] Added /home/docs/private/file1.txt")
+	}()
 
-	replica1.AddNode("/home/docs/private/file1.txt", "file1.txt", "/home/docs/private", File)
+	// Fixed operations on replica2
+	go func() {
+		time.Sleep(700 * time.Millisecond)
+		replica2.AddNode("/home", "home", "/", Dir)
+		fmt.Println("[r2] Added /home")
 
-	replica2.AddNode("/home/docs/private/file1.txt", "file1.txt", "/home/docs/private", Dir)
+		time.Sleep(700 * time.Millisecond)
+		replica2.AddNode("/user", "user", "/", Dir)
+		fmt.Println("[r2] Added /user")
 
-	replica2.RemoveNode("/home/docs/private", Dir)
+		time.Sleep(700 * time.Millisecond)
+		replica2.AddNode("/home/docs/private", "private", "/home/docs", Dir)
+		fmt.Println("[r2] Added /home/docs/private")
 
-	replica1.NodeSet.Merge(replica2.NodeSet)
+		time.Sleep(700 * time.Millisecond)
+		replica2.AddNode("/home/docs/private/file1.txt", "file1.txt", "/home/docs/private", Dir) // note Dir type here
+		fmt.Println("[r2] Added /home/docs/private/file1.txt (Dir)")
 
-	fmt.Println("-------------------------------------------")
+		time.Sleep(700 * time.Millisecond)
+		replica2.RemoveNode("/home/docs/private", Dir)
+		fmt.Println("[r2] Removed /home/docs/private (Dir)")
+	}()
 
-	// fmt.Println(replica1)
-	// PrintVisibleNodes(replica1)
+	// Periodic print of trees
+	go func() {
+		for {
+			time.Sleep(2 * time.Second)
 
-	// fmt.Print(replica1)
-	// fmt.Print(replica2)
-	tree := FinalTree(replica1.NodeSet, "root")
-	// ResolveNameConflicts(tree, replica1)
-	// ReattachOrphans(replica1, "compact")
-	PrintTree(tree, "")
-	// PrintVisibleNodes(replica1)
-	// fmt.Println(replica1)
-	fmt.Println("-------------------------------------------")
+			fmt.Println("\n[r1] Tree:")
+			tree1 := BuildTree(replica1.NodeSet, "root")
+			PrintTree(tree1, "")
+			// fmt.Println(replica1.NodeSet)
+
+			fmt.Println("\n[r2] Tree:")
+			tree2 := BuildTree(replica2.NodeSet, "root")
+			PrintTree(tree2, "")
+			// fmt.Println(replica2.NodeSet)
+
+			fmt.Println("---------------------------------------------------")
+		}
+	}()
+
+	time.Sleep(10 * time.Second)
+
+	// replica1.NodeSet.Merge(replica2.NodeSet)
+	fmt.Println("\n------------------FINAL TREE---------------")
+	finalTree := FinalTree(replica1.NodeSet, "root")
+	PrintTree(finalTree, "")
+}
+
+func main() {
+	runDistributedSys()
 }
