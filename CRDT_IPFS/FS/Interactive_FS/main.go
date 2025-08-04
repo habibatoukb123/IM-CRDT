@@ -88,10 +88,18 @@ func main() {
 			// ResolveNameConflicts(tree, replica.NodeSet)
 			PrintTree(tree, "")
 		case "final":
+			var policy string
+			if len(parts) == 2 {
+				policy = parts[1]
+				fmt.Printf("Orphan node policy: %s\n", policy)
+			} else {
+				fmt.Println("Default orphan node policy: skip")
+				policy = "skip"
+			}
 			fmt.Println("\n------------------FINAL TREE---------------")
 			mergeWithPeer(*peerPort, replica)
 			time.Sleep(500 * time.Millisecond)
-			tree := FinalTree(replica.NodeSet, "root")
+			tree := FinalTree(replica.NodeSet, policy)
 			PrintTree(tree, "")
 			os.Exit(0)
 		default:
