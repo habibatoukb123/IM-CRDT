@@ -178,3 +178,71 @@ func TestReplicaScenario4(t *testing.T) {
 
 	time.Sleep(2 * time.Second)
 }
+
+// Test naming layer
+// add(a) || add(a) conflict where elements are of type file
+// files created concurrently in the same place
+func TestReplicaScenario5(t *testing.T) {
+	os.MkdirAll("logs", 0755)
+
+	r1 := startReplica("r1", "8001", "8002", "r1_scenario5.log")
+	r2 := startReplica("r2", "8002", "8001", "r2_scenario5.log")
+
+	defer r1.close()
+	defer r2.close()
+
+	time.Sleep(1 * time.Second)
+
+	r1.sendCommand("add /home dir")
+	r2.sendCommand("add /user dir")
+	time.Sleep(500 * time.Millisecond)
+
+	r1.sendCommand("add /home/docs dir")
+	r2.sendCommand("add /home/docs/private dir")
+
+	r1.sendCommand("add /home/docs/private/rename file")
+	r2.sendCommand("remove /home/docs/private dir")
+
+	r2.sendCommand("add /home/docs/private/rename file")
+
+	time.Sleep(2 * time.Second)
+
+	r1.sendCommand("final reappear")
+	r2.sendCommand("final reappear")
+
+	time.Sleep(2 * time.Second)
+}
+
+// Test naming layer
+// add(a) || add(a) conflict where elements are of different types
+// elements created concurrently in the same place, from different replicas
+func TestReplicaScenario6(t *testing.T) {
+	os.MkdirAll("logs", 0755)
+
+	r1 := startReplica("r1", "8001", "8002", "r1_scenario6.log")
+	r2 := startReplica("r2", "8002", "8001", "r2_scenario6.log")
+
+	defer r1.close()
+	defer r2.close()
+
+	time.Sleep(1 * time.Second)
+
+	r1.sendCommand("add /home dir")
+	r2.sendCommand("add /user dir")
+	time.Sleep(500 * time.Millisecond)
+
+	r1.sendCommand("add /home/docs dir")
+	r2.sendCommand("add /home/docs/private dir")
+
+	r1.sendCommand("add /home/docs/private/rename file")
+	r2.sendCommand("remove /home/docs/private dir")
+
+	r2.sendCommand("add /home/docs/private/rename dir")
+
+	time.Sleep(2 * time.Second)
+
+	r1.sendCommand("final reappear")
+	r2.sendCommand("final reappear")
+
+	time.Sleep(2 * time.Second)
+}
