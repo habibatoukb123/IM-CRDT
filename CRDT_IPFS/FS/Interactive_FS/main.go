@@ -11,18 +11,36 @@ import (
 	"path"
 	"strings"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 func main() {
-	id := flag.String("id", "r1", "Replica ID")
+	// id := flag.String("id", "r1", "Replica ID")
 	port := flag.String("port", "8001", "Port to listen on")
-	peerPort := flag.String("peer", "8002", "Peer's port")
+	peersCSV := flag.String("peers", "", "Comma-separated peer ports or addresses (e.g. 8002,8003)")
 	flag.Parse()
 
+	host := "127.0.0.1"
+	peers := []string{}
+	if *peersCSV != "" {
+		for _, p := range strings.Split(*peersCSV, ",") {
+			p = strings.TrimSpace(p)
+			if p != "" && !strings.Contains(p, ":") {
+				p = host + ":" + p
+			}
+			peers = append(peers, p)
+		}
+	}
+
+	fmt.Println("Peers:", peers)
+
 	replica := &Replica{
-		ID:      *id,
+		ID:      uuid.New().String(),
 		NodeSet: NewNodeSetCRDT(),
 	}
+
+	fmt.Println("Replica 1:", replica.ID)
 
 	replica.AddNode("/", "root", "", Dir)
 
@@ -32,8 +50,10 @@ func main() {
 	// Start periodic merge with peer
 	go func() {
 		for {
-			time.Sleep(60 * time.Second)
-			mergeWithPeer(*peerPort, replica)
+			time.Sleep(120 * time.Second) // gossip interval
+			for _, net_addr := range peers {
+				mergeWithPeer(net_addr, replica)
+			}
 		}
 	}()
 
@@ -97,7 +117,9 @@ func main() {
 				policy = "skip"
 			}
 			fmt.Println("\n------------------FINAL TREE---------------")
-			mergeWithPeer(*peerPort, replica)
+			for _, addr := range peers {
+				mergeWithPeer(addr, replica)
+			}
 			time.Sleep(500 * time.Millisecond)
 			tree := FinalTree(replica.NodeSet, policy)
 			PrintTree(tree, "")
@@ -134,8 +156,8 @@ func handleConnection(conn net.Conn, replica *Replica) {
 	fmt.Println("[MERGE] Merged with peer")
 }
 
-func mergeWithPeer(peerPort string, replica *Replica) {
-	conn, err := net.Dial("tcp", ":"+peerPort)
+func mergeWithPeer(net_addr string, replica *Replica) {
+	conn, err := net.Dial("tcp", net_addr)
 	if err != nil {
 		return
 	}
