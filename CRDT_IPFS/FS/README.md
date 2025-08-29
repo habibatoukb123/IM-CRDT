@@ -1,4 +1,4 @@
-#CRONUS PROJECT - FILE SYSTEM
+# CRONUS PROJECT - FILE SYSTEM
 
 This part of the project is designed to integrate file systems as mutable data in the context of the integration of Merkle-CRDT into IPFS. 
 It uses the logic suggested by Mehdi Ahmed-Nacer et al. from the paper 'File system on CRDT" : https://inria.hal.science/hal-00720681/file/RR-8027.pdf
