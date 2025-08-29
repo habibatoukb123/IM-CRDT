@@ -16,8 +16,8 @@ type ReplicaProcess struct {
 	stdout *os.File
 }
 
-func startReplica(id, port, peer string, logFile string) *ReplicaProcess {
-	cmd := exec.Command("go", "run", "main.go", "fs.go", "--id="+id, "--port="+port, "--peer="+peer)
+func startReplica(port, peerList string, logFile string) *ReplicaProcess {
+	cmd := exec.Command("go", "run", "main.go", "fs.go", "-port", port, "-peers", peerList)
 
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
@@ -38,7 +38,7 @@ func startReplica(id, port, peer string, logFile string) *ReplicaProcess {
 		panic(err)
 	}
 
-	fmt.Printf("Started replica %s on port %s\n", id, port)
+	fmt.Printf("Started replica on port %s\n", port)
 	return &ReplicaProcess{cmd: cmd, stdin: stdin, stdout: f}
 }
 
@@ -57,8 +57,8 @@ func (rp *ReplicaProcess) close() {
 func TestReplicaScenario1(t *testing.T) {
 	os.MkdirAll("logs", 0755)
 
-	r1 := startReplica("r1", "8001", "8002", "r1_scenario1.log")
-	r2 := startReplica("r2", "8002", "8001", "r2_scenario1.log")
+	r1 := startReplica("8001", "8002", "r1_scenario1.log")
+	r2 := startReplica("8002", "8001", "r2_scenario1.log")
 
 	defer r1.close()
 	defer r2.close()
@@ -89,8 +89,8 @@ func TestReplicaScenario1(t *testing.T) {
 func TestReplicaScenario2(t *testing.T) {
 	os.MkdirAll("logs", 0755)
 
-	r1 := startReplica("r1", "8001", "8002", "r1_scenario2.log")
-	r2 := startReplica("r2", "8002", "8001", "r2_scenario2.log")
+	r1 := startReplica("8001", "8002", "r1_scenario2.log")
+	r2 := startReplica("8002", "8001", "r2_scenario2.log")
 
 	defer r1.close()
 	defer r2.close()
@@ -121,8 +121,8 @@ func TestReplicaScenario2(t *testing.T) {
 func TestReplicaScenario3(t *testing.T) {
 	os.MkdirAll("logs", 0755)
 
-	r1 := startReplica("r1", "8001", "8002", "r1_scenario3.log")
-	r2 := startReplica("r2", "8002", "8001", "r2_scenario3.log")
+	r1 := startReplica("8001", "8002", "r1_scenario3.log")
+	r2 := startReplica("8002", "8001", "r2_scenario3.log")
 
 	defer r1.close()
 	defer r2.close()
@@ -153,8 +153,8 @@ func TestReplicaScenario3(t *testing.T) {
 func TestReplicaScenario4(t *testing.T) {
 	os.MkdirAll("logs", 0755)
 
-	r1 := startReplica("r1", "8001", "8002", "r1_scenario4.log")
-	r2 := startReplica("r2", "8002", "8001", "r2_scenario4.log")
+	r1 := startReplica("8001", "8002", "r1_scenario4.log")
+	r2 := startReplica("8002", "8001", "r2_scenario4.log")
 
 	defer r1.close()
 	defer r2.close()
@@ -185,8 +185,8 @@ func TestReplicaScenario4(t *testing.T) {
 func TestReplicaScenario5(t *testing.T) {
 	os.MkdirAll("logs", 0755)
 
-	r1 := startReplica("r1", "8001", "8002", "r1_scenario5.log")
-	r2 := startReplica("r2", "8002", "8001", "r2_scenario5.log")
+	r1 := startReplica("8001", "8002", "r1_scenario5.log")
+	r2 := startReplica("8002", "8001", "r2_scenario5.log")
 
 	defer r1.close()
 	defer r2.close()
@@ -219,8 +219,8 @@ func TestReplicaScenario5(t *testing.T) {
 func TestReplicaScenario6(t *testing.T) {
 	os.MkdirAll("logs", 0755)
 
-	r1 := startReplica("r1", "8001", "8002", "r1_scenario6.log")
-	r2 := startReplica("r2", "8002", "8001", "r2_scenario6.log")
+	r1 := startReplica("8001", "8002", "r1_scenario6.log")
+	r2 := startReplica("8002", "8001", "r2_scenario6.log")
 
 	defer r1.close()
 	defer r2.close()
