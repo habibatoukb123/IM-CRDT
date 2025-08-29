@@ -15,8 +15,15 @@ import (
 	"github.com/google/uuid"
 )
 
+/* The code in main.go deals with the replica interaction / connection in our system.
+For the moment, it is based on a server as connection is established through tcp but
+can be extended or modified to mimic peer to peer network with no server.
+NB: server does not make the decisions, coinflict resolution is based on fs.go with Mehdi Ahmed-Nacer
+logic, not on a server acting as a master.  */
+
+// Overall logic of code
+// Provides command-line interface for interacting with replica
 func main() {
-	// id := flag.String("id", "r1", "Replica ID")
 	port := flag.String("port", "8001", "Port to listen on")
 	peersCSV := flag.String("peers", "", "Comma-separated peer ports or addresses (e.g. 8002,8003)")
 	flag.Parse()
@@ -33,14 +40,16 @@ func main() {
 		}
 	}
 
-	fmt.Println("Peers:", peers)
-
 	replica := &Replica{
-		ID:      uuid.New().String(),
-		NodeSet: NewNodeSetCRDT(),
+		ID:       uuid.New().String(),
+		NodeSet:  NewNodeSetCRDT(),
+		LastSeen: make(map[string]int64),
+		OpLog:    []Operation{},
+		Peers:    peers,
+		Addr:     host + ":" + *port,
 	}
 
-	fmt.Println("Replica 1:", replica.ID)
+	fmt.Println("Replica ID:", replica.ID)
 
 	replica.AddNode("/", "root", "", Dir)
 
@@ -51,16 +60,14 @@ func main() {
 	go func() {
 		for {
 			time.Sleep(120 * time.Second) // gossip interval
-			for _, net_addr := range peers {
-				mergeWithPeer(net_addr, replica)
-			}
+			gossipToPeers(replica, "")
 		}
 	}()
 
 	// CLI input
 	scanner := bufio.NewScanner(os.Stdin)
 	for {
-		fmt.Print("Enter command (add <path> <type> | remove <path> <type> | print): ")
+		fmt.Print("Enter command (add <path> <type> | remove <path> <type> | print | final (+policy)): ")
 		scanner.Scan()
 		input := scanner.Text()
 		parts := strings.Fields(input)
@@ -69,6 +76,7 @@ func main() {
 		}
 
 		switch parts[0] {
+
 		case "add":
 			if len(parts) < 3 {
 				fmt.Println("Usage: add <path> <dir|file>")
@@ -84,10 +92,10 @@ func main() {
 			}
 			parent := path.Dir(pathStr)
 			name := path.Base(pathStr)
-			// ts := replica.NextTimestamp()
-			// node := NewNode(path, name, parent, nodeType, ts, replica.ID)
-			fmt.Println(pathStr, name, parent, nodeType)
 			replica.AddNode(pathStr, name, parent, nodeType)
+			fmt.Printf("[ADD] Added %s of type %s under parent %s: %s \n", name, nodeType, parent, pathStr)
+			gossipToPeers(replica, "")
+
 		case "remove":
 			if len(parts) < 3 {
 				fmt.Println("Usage: remove <path> <dir|file>")
@@ -101,12 +109,14 @@ func main() {
 			} else {
 				nodeType = File
 			}
-			// ts := replica.NextTimestamp()
 			replica.RemoveNode(pathStr, nodeType)
+			fmt.Printf("[REMOVE] Removed %s of type %s\n", pathStr, nodeType)
+			gossipToPeers(replica, "")
+
 		case "print":
 			tree := BuildTree(replica.NodeSet, "root")
-			// ResolveNameConflicts(tree, replica.NodeSet)
 			PrintTree(tree, "")
+
 		case "final":
 			var policy string
 			if len(parts) == 2 {
@@ -117,19 +127,27 @@ func main() {
 				policy = "skip"
 			}
 			fmt.Println("\n------------------FINAL TREE---------------")
-			for _, addr := range peers {
-				mergeWithPeer(addr, replica)
-			}
+			gossipToPeers(replica, "")
 			time.Sleep(500 * time.Millisecond)
 			tree := FinalTree(replica.NodeSet, policy)
 			PrintTree(tree, "")
 			os.Exit(0)
+
+		case "syncAll":
+
 		default:
 			fmt.Println("Unknown command")
 		}
 	}
 }
 
+/* ------------------------------------------------------------------------------------------------------------------------------
+---------------------------------------------------- TCP CONNECTION + EXCHANGES--------------------------------------------------
+--------------------------------------------------------------------------------------------------------------------------------- */
+
+// Server / Listener
+// startServer starts a TCP server to accept connections from peers.
+// Each connection is handled concurrently via handleConnection.
 func startServer(port string, replica *Replica) {
 	ln, err := net.Listen("tcp", ":"+port)
 	if err != nil {
@@ -144,24 +162,118 @@ func startServer(port string, replica *Replica) {
 	}
 }
 
+// Server side request handler
+// handleConnection processes a single peer connection.
+// It receives operations from the peer, applies them locally,
+// And sends back missing operations with peer list.
 func handleConnection(conn net.Conn, replica *Replica) {
+	// Set up the connection for communication, decode the incoming SyncRequest from the peer
 	defer conn.Close()
 	dec := gob.NewDecoder(conn)
-	var incoming NodeSetCRDT
-	if err := dec.Decode(&incoming); err != nil {
-		log.Println("Failed to decode:", err)
+	enc := gob.NewEncoder(conn)
+
+	var request SyncRequest
+	if err := dec.Decode(&request); err != nil {
+		log.Println("Failed to decode SyncRequest:", err)
 		return
 	}
-	replica.NodeSet.Merge(&incoming)
-	fmt.Println("[MERGE] Merged with peer")
+
+	// Add new peer if not already known
+	if request.ListenAddr != "" && !contains(replica.Peers, request.ListenAddr) {
+		replica.Peers = append(replica.Peers, request.ListenAddr)
+		fmt.Println("[PEERS] Added new peer:", request.ListenAddr)
+	}
+
+	// Apply operations that the requester had
+	if len(request.Ops) > 0 {
+		replica.Receive(request.Ops)
+	}
+
+	// Send operations that requester does not yet have, and current peer list (in case it has been updated)
+	opsToSend := replica.OpsToSend(request.LastSeen)
+	resp := SyncResponse{
+		Ops:   opsToSend,
+		Peers: replica.Peers,
+	}
+	if err := enc.Encode(&resp); err != nil {
+		log.Println("Failed to send SyncResponse:", err)
+		return
+	}
+
+	fmt.Printf("[SYNC] served %d operations to replica: %s\n", len(opsToSend), request.ReplicaID)
 }
 
+// Client / Peer Synchronizer
+// mergeWithPeer connects to a remote peer (client-side) and synchronizes state.
+// Sends local operations, receives missing operations, and updates peer list.
+// Newly received operations can be gossiped to other known peers.
 func mergeWithPeer(net_addr string, replica *Replica) {
+	// Dial the remote peer to establish TCP connection
 	conn, err := net.Dial("tcp", net_addr)
 	if err != nil {
+		log.Println("Dial error:", err)
 		return
 	}
+
 	defer conn.Close()
 	enc := gob.NewEncoder(conn)
-	_ = enc.Encode(replica.NodeSet)
+	dec := gob.NewDecoder(conn)
+
+	// Send SyncRequest containing info needed by requester
+	request := SyncRequest{
+		ReplicaID:  replica.ID,
+		LastSeen:   replica.LastSeen,
+		Ops:        replica.OpLog,
+		ListenAddr: replica.Addr,
+	}
+
+	if err := enc.Encode(&request); err != nil {
+		log.Println("Failed to send SyncRequest:", err)
+		return
+	}
+
+	// Receive  SyncResponse containing any new operations and updated peer list
+	var resp SyncResponse
+	if err := dec.Decode(&resp); err != nil {
+		log.Println("Failed to send SyncResponse:", err)
+		return
+	}
+
+	if len(resp.Ops) > 0 {
+		replica.Receive(resp.Ops)
+		gossipToPeers(replica, net_addr)
+	}
+
+	// Merge peer lists
+	for _, p := range resp.Peers {
+		if !contains(replica.Peers, p) && p != replica.Addr {
+			replica.Peers = append(replica.Peers, p)
+			fmt.Println("[PEERS] Learned new peer:", p)
+		}
+	}
+
+	fmt.Printf("[SYNC] from %s applied %d ops\n", net_addr, len(resp.Ops))
+}
+
+/* ------------------------------------------------------------------------------------------------------------------------------
+------------------------------------------------------------ HELPERS ------------------------------------------------------------
+--------------------------------------------------------------------------------------------------------------------------------- */
+
+func contains(slice []string, item string) bool {
+	for _, s := range slice {
+		if s == item {
+			return true
+		}
+	}
+	return false
+}
+
+// Gossip to all known peers
+func gossipToPeers(replica *Replica, exclude string) {
+	for _, addr := range replica.Peers {
+		if addr == "" || addr == replica.Addr || addr == exclude {
+			continue
+		}
+		go mergeWithPeer(addr, replica)
+	}
 }
