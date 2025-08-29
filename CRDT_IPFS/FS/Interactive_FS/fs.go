@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -433,7 +434,7 @@ func BuildTree(ns *NodeSetCRDT, policy string) *TreeNode {
 //  1. Same-name, same-type, both files with content →
 //     Merge the file contents, then remove the duplicate from CRDT.
 //  2. Same-name but different types (file vs dir) →
-//     Rename the file by appending its ReplicaID in brackets.
+//     Rename the file by appending the first part of its ReplicaID in brackets.
 //  3. If a rename occurs, update the CRDT AddSet with the new node name.
 //
 // Updates the CRDT (ns) as it resolves conflicts, and recurses into child subtrees to handle deeper levels.
@@ -463,7 +464,26 @@ func ResolveNameConflicts(tree *TreeNode, ns *NodeSetCRDT) {
 			} else {
 				// File vs Dir → Rename file
 				if child.Node.Type == File {
-					child.Node.Name += "[" + child.Node.ReplicaID + "]"
+
+					extension := strings.SplitN(child.Node.ReplicaID, "-", 2)[0]
+					child.Node.Name += "[" + extension + "]"
+
+					// Update the path to reflect new file name
+					lastSlash := strings.LastIndex(child.Node.Path, "/")
+					if lastSlash != -1 {
+						child.Node.Path = child.Node.Path[:lastSlash+1] + child.Node.Name
+					} else {
+						// If no "/", just replace whole path with new name
+						child.Node.Path = child.Node.Name
+					}
+
+					// Update the state in CRDT
+					key := NodeKey{Path: child.Node.Path, Type: child.Node.Type}
+					ns.AddSet[key] = child.Node
+
+					// In case changing the node path was not the goal, only changing the name, remove above code
+					// and uncomment following line.
+					// child.Node.Name += "[" + child.Node.ReplicaID + "]"
 				} else if existing.Node.Type == File {
 					existing.Node.Name += "[" + existing.Node.ReplicaID + "]"
 					existingKey := NodeKey{Path: existing.Node.Path, Type: existing.Node.Type}
@@ -541,7 +561,7 @@ func (r *Replica) RemoveNode(path string, typ NodeType) {
 	ts := r.NextTimestamp()
 
 	op := Operation{
-		Type: AddOp,
+		Type: DeleteOp,
 		Node: Node{
 			Path:      path,
 			Type:      typ,

@@ -111,7 +111,7 @@ func main() {
 			}
 			replica.RemoveNode(pathStr, nodeType)
 			fmt.Printf("[REMOVE] Removed %s of type %s\n", pathStr, nodeType)
-			gossipToPeers(replica, "")
+			// gossipToPeers(replica, "")
 
 		case "print":
 			tree := BuildTree(replica.NodeSet, "root")
@@ -133,7 +133,9 @@ func main() {
 			PrintTree(tree, "")
 			os.Exit(0)
 
-		case "syncAll":
+		// Can be added to synchronize peers that join directly instead of waiting for them to send their operations in order to sync.
+		// This can be done using the merge method in fs.go which sends the whole state instead of doing operation based.
+		// case "syncAll":
 
 		default:
 			fmt.Println("Unknown command")
